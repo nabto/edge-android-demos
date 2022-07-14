@@ -15,17 +15,6 @@ import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.serialization.*
 
-/**
- * DevicePageFragment.kt
- * @TODO:
- *   * This file holds a lot more than just DevicePageFragment class
- *     rename and/or move things around?
- *   * Program _will_ crash if the device is unavailable
- *     This is because we try to access the device all the time
- *     without checking for exceptions. To be fixed later.
- *   * Thorough documentation is required
- */
-
 class DevicePageFragment : Fragment() {
     private var hasLoaded = false
     private lateinit var device: Device
@@ -86,8 +75,8 @@ class DevicePageFragment : Fragment() {
         }
 
         val model = ViewModelProvider(viewModelStore, factory)[HeatPumpViewModel::class.java]
-        model.getHeatPumpState()
-            .observe(viewLifecycleOwner, Observer { state -> updateViewFromState(view, state) })
+        model.getHeatPumpEventQueue()
+            .observe(viewLifecycleOwner, Observer { event -> updateViewFromEvent(view, event) })
 
         powerSwitchView.setOnClickListener {
             model.setPower(powerSwitchView.isChecked)
@@ -107,8 +96,19 @@ class DevicePageFragment : Fragment() {
         }
     }
 
-    private fun updateViewFromState(view: View, state: HeatPumpState) {
-        if (!state.valid) {
+    private fun updateViewFromEvent(view: View, event: HeatPumpViewModel.HeatPumpEvent) {
+        if (event is HeatPumpViewModel.HeatPumpEvent.FailedToConnect) {
+            val snackbar = Snackbar.make(
+                view,
+                "Failed to connect to device",
+                Snackbar.LENGTH_LONG
+            )
+            snackbar.show()
+            findNavController().popBackStack()
+            return
+        }
+
+        if (event is HeatPumpViewModel.HeatPumpEvent.LostConnection) {
             val snackbar = Snackbar.make(
                 view,
                 "Lost connection to device",
@@ -119,17 +119,19 @@ class DevicePageFragment : Fragment() {
             return
         }
 
-        if (!hasLoaded) {
-            hasLoaded = true
-            powerSwitchView.isChecked = state.power
-            targetSliderView.value = state.target.toFloat()
-            modeSpinnerView.setSelection(state.mode.ordinal)
+        if (event is HeatPumpViewModel.HeatPumpEvent.Update) {
+            if (!hasLoaded) {
+                hasLoaded = true
+                powerSwitchView.isChecked = event.state.power
+                targetSliderView.value = event.state.target.toFloat()
+                modeSpinnerView.setSelection(event.state.mode.ordinal)
 
-            // Destroy the loading spinner and show device page to user
-            view.findViewById<View>(R.id.dp_loading).visibility = View.GONE
-            view.findViewById<View>(R.id.dp_main).visibility = View.VISIBLE
+                // Destroy the loading spinner and show device page to user
+                view.findViewById<View>(R.id.dp_loading).visibility = View.GONE
+                view.findViewById<View>(R.id.dp_main).visibility = View.VISIBLE
+            }
+
+            temperatureView.text = getString(R.string.temperature_format).format(event.state.temperature)
         }
-
-        temperatureView.text = getString(R.string.temperature_format).format(state.temperature)
     }
 }

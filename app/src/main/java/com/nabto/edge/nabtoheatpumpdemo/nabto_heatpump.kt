@@ -67,26 +67,57 @@ data class HeatPumpConnectionData(
 
 class HeatPumpConnection(private val data: HeatPumpConnectionData, private val device: Device) :
     DeviceConnection {
-    private val invalidState = HeatPumpState(HeatPumpMode.UNKNOWN, false, 0.0, 0.0, false)
-    private lateinit var connection: Connection
-    private var connectionState = MutableLiveData(DeviceConnection.State.CLOSED)
-
-    override fun getConnectionState(): LiveData<DeviceConnection.State> {
-        return connectionState
+    enum class State {
+        CLOSED,
+        CONNECTING,
+        CONNECTED
     }
 
-    override fun getCurrentConnectionState(): DeviceConnection.State {
-        return connectionState.value ?: DeviceConnection.State.CLOSED
+    private var nextIndex = 0
+    private val subscribers: MutableMap<SubscriberId, (e: DeviceConnectionEvent) -> Unit> = mutableMapOf()
+
+    private val invalidState = HeatPumpState(HeatPumpMode.UNKNOWN, false, 0.0, 0.0, false)
+    private lateinit var connection: Connection
+    private var connectionState = State.CLOSED
+
+    override fun subscribe(callback: (e: DeviceConnectionEvent) -> Unit): SubscriberId {
+        val id = SubscriberId(nextIndex++)
+        subscribers[id] = callback
+        return id
+    }
+
+    override fun unsubscribe(id: SubscriberId) {
+        subscribers.remove(id)
+    }
+
+    private fun publish(event: DeviceConnectionEvent) {
+        connectionState = when (event) {
+            DeviceConnectionEvent.CONNECTED -> State.CONNECTED
+            DeviceConnectionEvent.CONNECTING -> State.CONNECTING
+            DeviceConnectionEvent.DEVICE_DISCONNECTED -> State.CLOSED
+            DeviceConnectionEvent.FAILED_TO_CONNECT -> State.CLOSED
+            DeviceConnectionEvent.CLOSED -> State.CLOSED
+        }
+
+        subscribers.forEach { cb ->
+            cb.value(event)
+        }
     }
 
     override suspend fun connect() {
         connection = NabtoHeatPumpApplication.nabtoClient.createConnection()
-        connectionState.postValue(DeviceConnection.State.CONNECTING)
+        publish(DeviceConnectionEvent.CONNECTING)
         connection.addConnectionEventsListener(object : ConnectionEventsCallback() {
             override fun onEvent(event: Int) {
                 when (event) {
-                    CLOSED -> connectionState.postValue(DeviceConnection.State.CLOSED)
-                    CONNECTED -> connectionState.postValue(DeviceConnection.State.CONNECTED)
+                    CLOSED -> {
+                        if (connectionState == State.CONNECTED) {
+                            // HeatPumpConnection.close() sets state to CLOSED
+                            // So we only get here if the device itself has disconnected
+                            publish(DeviceConnectionEvent.DEVICE_DISCONNECTED)
+                        }
+                    }
+                    CONNECTED -> publish(DeviceConnectionEvent.CONNECTED)
                 }
             }
         })
@@ -99,16 +130,20 @@ class HeatPumpConnection(private val data: HeatPumpConnectionData, private val d
         connection.updateOptions(options.toString())
 
         try {
-            connection.connectAsync()
-        } catch (e: NabtoRuntimeException) {
-            connectionState.postValue(DeviceConnection.State.CLOSED)
-            Log.i("DeviceDebug", e.message.toString())
-            // @TODO: Print to log?
+            // @TODO: connectAsync would set a callback and wait
+            //        for that callback to respond, if we time out then
+            //        the device might connect but we never respond to the callback?
+            //        Unsure if this is actually the case, needs further investigation
+            withTimeout(2000) {
+                connection.connectAsync()
+            }
+        } catch (e: Exception) {
+            publish(DeviceConnectionEvent.FAILED_TO_CONNECT)
         }
     }
 
     private suspend fun <T> safeCall(errorVal: T, code: suspend () -> T): T {
-        if (getCurrentConnectionState() != DeviceConnection.State.CONNECTED) {
+        if (connectionState != State.CONNECTED) {
             return errorVal
         }
         return try {
@@ -124,7 +159,7 @@ class HeatPumpConnection(private val data: HeatPumpConnectionData, private val d
 
     override suspend fun close() {
         safeCall({}) {
-            connectionState.postValue(DeviceConnection.State.CLOSED)
+            publish(DeviceConnectionEvent.CLOSED)
             withContext(Dispatchers.IO) {
                 connection.close()
             }
@@ -206,8 +241,14 @@ class HeatPumpViewModel(
     device: Device,
     private val applicationScope: CoroutineScope
 ) : ViewModel() {
+    sealed class HeatPumpEvent {
+        class Update(val state: HeatPumpState): HeatPumpEvent()
+        object LostConnection: HeatPumpEvent()
+        object FailedToConnect: HeatPumpEvent()
+    }
+
     private val heatPumpConnection: HeatPumpConnection = HeatPumpConnection(connection_data, device)
-    private val heatPumpState: MutableLiveData<HeatPumpState> = MutableLiveData()
+    private val heatPumpEvent: MutableLiveData<HeatPumpEvent> = MutableLiveData()
 
     private val TAG = this.javaClass.simpleName
     private var isConnected = false
@@ -215,9 +256,7 @@ class HeatPumpViewModel(
 
     init {
         viewModelScope.launch {
-            heatPumpConnection.getConnectionState().asFlow().collect { state ->
-                onConnectionChanged(state)
-            }
+            heatPumpConnection.subscribe { onConnectionChanged(it) }
         }
 
         viewModelScope.launch {
@@ -225,25 +264,27 @@ class HeatPumpViewModel(
         }
     }
 
-    private fun onConnectionChanged(state: DeviceConnection.State) {
-        Log.i(TAG, "Device connection state changed to: ${state.name}")
+    private fun onConnectionChanged(state: DeviceConnectionEvent) {
+        Log.i(TAG, "Device connection state changed to: $state")
         when (state) {
-            DeviceConnection.State.CLOSED -> viewModelScope.launch {
-                if (isConnected) {
-                    isConnected = false
+            DeviceConnectionEvent.CONNECTED -> onConnected()
+            DeviceConnectionEvent.DEVICE_DISCONNECTED -> onDeviceDisconnected()
+            DeviceConnectionEvent.FAILED_TO_CONNECT -> heatPumpEvent.postValue(HeatPumpEvent.FailedToConnect)
+            else -> {}
+        }
+    }
 
-                    // Update state here to send out an invalid state that the
-                    // fragments can react to
-                    updateHeatPumpState()
-                }
-            }
-            DeviceConnection.State.CONNECTING -> {}
-            DeviceConnection.State.CONNECTED -> viewModelScope.launch {
-                if (!isConnected) {
-                    isConnected = true
-                    updateLoop()
-                }
-            }
+    private fun onConnected() {
+        viewModelScope.launch {
+            isConnected = true
+            updateLoop()
+        }
+    }
+
+    private fun onDeviceDisconnected() {
+        viewModelScope.launch {
+            isConnected = false
+            heatPumpEvent.postValue(HeatPumpEvent.LostConnection)
         }
     }
 
@@ -255,8 +296,8 @@ class HeatPumpViewModel(
         }
     }
 
-    fun getHeatPumpState(): LiveData<HeatPumpState> {
-        return heatPumpState
+    fun getHeatPumpEventQueue(): LiveData<HeatPumpEvent> {
+        return heatPumpEvent
     }
 
     fun setPower(toggled: Boolean) {
@@ -285,7 +326,7 @@ class HeatPumpViewModel(
 
     private suspend fun updateHeatPumpState() {
         val state = heatPumpConnection.getState()
-        heatPumpState.postValue(state)
+        heatPumpEvent.postValue(HeatPumpEvent.Update(state))
     }
 
     override fun onCleared() {

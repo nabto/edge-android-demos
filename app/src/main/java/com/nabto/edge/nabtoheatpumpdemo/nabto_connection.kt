@@ -1,16 +1,19 @@
 package com.nabto.edge.nabtoheatpumpdemo
 
-import androidx.lifecycle.LiveData
+enum class DeviceConnectionEvent {
+    CONNECTING,
+    CONNECTED,
+    DEVICE_DISCONNECTED,
+    FAILED_TO_CONNECT,
+    CLOSED
+}
+
+data class SubscriberId(val index: Int)
 
 interface DeviceConnection {
-    enum class State {
-        CLOSED,
-        CONNECTING,
-        CONNECTED
-    }
-
-    fun getConnectionState(): LiveData<State>
-    fun getCurrentConnectionState(): State
+    fun subscribe(callback: (e: DeviceConnectionEvent) -> Unit): SubscriberId
+    fun unsubscribe(id: SubscriberId)
     suspend fun connect()
     suspend fun close()
 }
+
