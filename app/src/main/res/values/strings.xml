@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Nabto Heatpump Demo</string>
+    <string name="main_activity_label">My Devices</string>
+    <string name="unnamed_device">Unnamed Device</string>
+    <string name="temperature_format">%.1f°</string>
+    <string-array name="modes_array">
+        <item>Cool</item>
+        <item>Heat</item>
+        <item>Circulate</item>
+        <item>Dehumidify</item>
+    </string-array>
+</resources>

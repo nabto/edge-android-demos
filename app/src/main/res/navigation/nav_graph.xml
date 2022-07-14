@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/initialPairingFragment"
+        android:name="com.nabto.edge.nabtoheatpumpdemo.InitialPairingFragment"
+        android:label="fragment_initial_pairing"
+        tools:layout="@layout/fragment_initial_pairing" />
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.nabto.edge.nabtoheatpumpdemo.HomeFragment"
+        android:label="fragment_home"
+        tools:layout="@layout/fragment_home" >
+        <action
+            android:id="@+id/action_homeFragment_to_initialPairingFragment"
+            app:destination="@id/initialPairingFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_devicePageFragment"
+            app:destination="@id/devicePageFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/devicePageFragment"
+        android:name="com.nabto.edge.nabtoheatpumpdemo.DevicePageFragment"
+        android:label="fragment_device_page"
+        tools:layout="@layout/fragment_device_page" />
+</navigation>

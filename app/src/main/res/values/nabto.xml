@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nabto_shared_preferences">com.nabto.edge.nabtoheatpumpdemo.nabto_shared_preferences</string>
+    <string name="nabto_server_key">sk-d8254c6f790001003d0c842d1b63b134</string>
+</resources>
