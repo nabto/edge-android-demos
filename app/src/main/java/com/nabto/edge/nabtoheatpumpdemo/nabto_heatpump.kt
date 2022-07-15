@@ -12,18 +12,22 @@
 
 package com.nabto.edge.nabtoheatpumpdemo
 
-import android.util.Log
-import androidx.lifecycle.*
 import com.nabto.edge.client.Coap
 import com.nabto.edge.client.Connection
 import com.nabto.edge.client.ConnectionEventsCallback
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.ktx.connectAsync
 import com.nabto.edge.client.ktx.executeAsync
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.*
 import kotlinx.serialization.cbor.Cbor
 import org.json.JSONObject
+import kotlin.collections.MutableMap
+import kotlin.collections.forEach
+import kotlin.collections.mutableMapOf
+import kotlin.collections.set
 
 enum class HeatPumpMode(val string: String) {
     COOL("COOL"),
@@ -60,12 +64,11 @@ private fun decodeHeatPumpStateFromCBOR(cbor: ByteArray): HeatPumpState {
     )
 }
 
-data class HeatPumpConnectionData(
-    val client_private_key: String,
-    val nabto_server_key: String
-)
-
-class HeatPumpConnection(private val data: HeatPumpConnectionData, private val device: Device) :
+class HeatPumpConnection(
+    private val repo: NabtoRepository,
+    private val device: Device,
+    private val connectionService: NabtoConnectionService
+) :
     DeviceConnection {
     enum class State {
         CLOSED,
@@ -74,7 +77,8 @@ class HeatPumpConnection(private val data: HeatPumpConnectionData, private val d
     }
 
     private var nextIndex = 0
-    private val subscribers: MutableMap<SubscriberId, (e: DeviceConnectionEvent) -> Unit> = mutableMapOf()
+    private val subscribers: MutableMap<SubscriberId, (e: DeviceConnectionEvent) -> Unit> =
+        mutableMapOf()
 
     private val invalidState = HeatPumpState(HeatPumpMode.UNKNOWN, false, 0.0, 0.0, false)
     private lateinit var connection: Connection
@@ -105,7 +109,7 @@ class HeatPumpConnection(private val data: HeatPumpConnectionData, private val d
     }
 
     override suspend fun connect() {
-        connection = NabtoHeatPumpApplication.nabtoClient.createConnection()
+        connection = connectionService.createConnection()
         publish(DeviceConnectionEvent.CONNECTING)
         connection.addConnectionEventsListener(object : ConnectionEventsCallback() {
             override fun onEvent(event: Int) {
@@ -125,8 +129,8 @@ class HeatPumpConnection(private val data: HeatPumpConnectionData, private val d
         val options = JSONObject()
         options.put("ProductId", device.productId)
         options.put("DeviceId", device.deviceId)
-        options.put("ServerKey", data.nabto_server_key)
-        options.put("PrivateKey", data.client_private_key)
+        options.put("ServerKey", repo.getServerKey())
+        options.put("PrivateKey", repo.getClientPrivateKey())
         connection.updateOptions(options.toString())
 
         try {
@@ -217,122 +221,6 @@ class HeatPumpConnection(private val data: HeatPumpConnectionData, private val d
                 // @TODO: Better error handling
                 throw(Exception("Failed to set heat pump target temperature"))
             }
-        }
-    }
-}
-
-class HeatPumpViewModelFactory(
-    private val data: HeatPumpConnectionData,
-    private val device: Device,
-    private val scope: CoroutineScope
-) :
-    ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return modelClass.getConstructor(
-            HeatPumpConnectionData::class.java,
-            Device::class.java,
-            CoroutineScope::class.java
-        ).newInstance(data, device, scope)
-    }
-}
-
-class HeatPumpViewModel(
-    connection_data: HeatPumpConnectionData,
-    device: Device,
-    private val applicationScope: CoroutineScope
-) : ViewModel() {
-    sealed class HeatPumpEvent {
-        class Update(val state: HeatPumpState): HeatPumpEvent()
-        object LostConnection: HeatPumpEvent()
-        object FailedToConnect: HeatPumpEvent()
-    }
-
-    private val heatPumpConnection: HeatPumpConnection = HeatPumpConnection(connection_data, device)
-    private val heatPumpEvent: MutableLiveData<HeatPumpEvent> = MutableLiveData()
-
-    private val TAG = this.javaClass.simpleName
-    private var isConnected = false
-    private val updatesPerSecond = 10.0
-
-    init {
-        viewModelScope.launch {
-            heatPumpConnection.subscribe { onConnectionChanged(it) }
-        }
-
-        viewModelScope.launch {
-            heatPumpConnection.connect()
-        }
-    }
-
-    private fun onConnectionChanged(state: DeviceConnectionEvent) {
-        Log.i(TAG, "Device connection state changed to: $state")
-        when (state) {
-            DeviceConnectionEvent.CONNECTED -> onConnected()
-            DeviceConnectionEvent.DEVICE_DISCONNECTED -> onDeviceDisconnected()
-            DeviceConnectionEvent.FAILED_TO_CONNECT -> heatPumpEvent.postValue(HeatPumpEvent.FailedToConnect)
-            else -> {}
-        }
-    }
-
-    private fun onConnected() {
-        viewModelScope.launch {
-            isConnected = true
-            updateLoop()
-        }
-    }
-
-    private fun onDeviceDisconnected() {
-        viewModelScope.launch {
-            isConnected = false
-            heatPumpEvent.postValue(HeatPumpEvent.LostConnection)
-        }
-    }
-
-    private suspend fun updateLoop() {
-        while (isConnected) {
-            updateHeatPumpState()
-            val delayTime = (1.0 / updatesPerSecond * 1000.0).toLong()
-            delay(delayTime)
-        }
-    }
-
-    fun getHeatPumpEventQueue(): LiveData<HeatPumpEvent> {
-        return heatPumpEvent
-    }
-
-    fun setPower(toggled: Boolean) {
-        if (!isConnected) return
-        viewModelScope.launch {
-            heatPumpConnection.setPower(toggled)
-            updateHeatPumpState()
-        }
-    }
-
-    fun setMode(mode: HeatPumpMode) {
-        if (!isConnected) return
-        viewModelScope.launch {
-            heatPumpConnection.setMode(mode)
-            updateHeatPumpState()
-        }
-    }
-
-    fun setTarget(value: Double) {
-        if (!isConnected) return
-        viewModelScope.launch {
-            heatPumpConnection.setTarget(value)
-            updateHeatPumpState()
-        }
-    }
-
-    private suspend fun updateHeatPumpState() {
-        val state = heatPumpConnection.getState()
-        heatPumpEvent.postValue(HeatPumpEvent.Update(state))
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        applicationScope.launch {
-            heatPumpConnection.close()
         }
     }
 }

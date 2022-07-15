@@ -6,56 +6,40 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.TextView
 import androidx.core.os.bundleOf
-import androidx.fragment.app.findFragment
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.coroutineScope
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
+import org.koin.androidx.viewmodel.ext.android.viewModel
+import org.koin.core.parameter.parametersOf
 
-class HomeDeviceListAdapter(lifecycleOwner: LifecycleOwner) : RecyclerView.Adapter<HomeDeviceListAdapter.ViewHolder>() {
-    class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
-        lateinit var device: Device
-        val title: TextView = view.findViewById(R.id.home_device_item_title)
-        val status: TextView = view.findViewById(R.id.home_device_item_subtitle)
-    }
-
-    private var dataSet: List<Device> = listOf()
+class HomeViewModel(private val database: DeviceDatabase) : ViewModel() {
+    private val _deviceList = MutableLiveData<List<Device>>()
+    val deviceList: LiveData<List<Device>>
+    get() = _deviceList
 
     init {
-        lifecycleOwner.lifecycle.coroutineScope.launch {
-            val dao = NabtoHeatPumpApplication.deviceDatabase.deviceDao()
-            dao.getAll().collect {
-                dataSet = it
-                notifyDataSetChanged()
+        viewModelScope.launch {
+            database.deviceDao().getAll().collect { devices ->
+                _deviceList.postValue(devices)
             }
         }
     }
-
-    override fun onCreateViewHolder(
-        parent: ViewGroup,
-        viewType: Int
-    ): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.home_device_list_item, parent, false)
-        return ViewHolder(view)
-    }
-
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.title.text = dataSet[position].friendlyName.ifEmpty { "Unnamed Device" }
-        holder.status.text = dataSet[position].deviceId
-        holder.view.setOnClickListener {
-            it.findFragment<HomeFragment>().onDeviceClick(dataSet[position])
-        }
-    }
-
-    override fun getItemCount() = dataSet.size
 }
 
 class HomeFragment : Fragment() {
+    private val mainViewModel: MainViewModel by activityViewModels()
+    private val database: DeviceDatabase by inject()
+    private val model: HomeViewModel by viewModel { parametersOf(database) }
+    private val deviceListAdapter = DeviceListAdapter()
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -64,14 +48,19 @@ class HomeFragment : Fragment() {
         val view = inflater.inflate(R.layout.fragment_home, container, false)
 
         val recycler = view.findViewById<RecyclerView>(R.id.home_recycler)
-        recycler.adapter = HomeDeviceListAdapter(viewLifecycleOwner)
+        recycler.adapter = deviceListAdapter
         recycler.layoutManager = LinearLayoutManager(activity)
+
+        model.deviceList.observe(viewLifecycleOwner) { devices ->
+            deviceListAdapter.submitDeviceList(devices)
+        }
 
         return view
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        mainViewModel.setTitle(getString(R.string.title_home))
         val button = view.findViewById<Button>(R.id.main_pair_new_button)
         button?.setOnClickListener { _ ->
             findNavController().navigate(R.id.action_homeFragment_to_initialPairingFragment)

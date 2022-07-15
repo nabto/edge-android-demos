@@ -24,27 +24,18 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="100dp"
+            android:layout_height="wrap_content"
             android:gravity="center"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/main_refresh_button"
-                style="?android:attr/buttonBarButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="refresh"
-                android:textColor="#00796B" />
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
 
             <Button
                 android:id="@+id/main_pair_new_button"
-                style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="pair new"
-                android:textColor="#00796B" />
+                android:text="pair new" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

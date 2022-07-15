@@ -14,13 +14,16 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import com.nabto.edge.client.NabtoRuntimeException
+import com.nabto.edge.client.ktx.connectAsync
 import com.nabto.edge.iamutil.Iam
 import com.nabto.edge.iamutil.IamException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import org.koin.android.ext.android.inject
 
-class PairingDeviceListAdapter(lifecycleOwner: LifecycleOwner) : RecyclerView.Adapter<PairingDeviceListAdapter.ViewHolder>() {
+class PairingDeviceListAdapter(lifecycleOwner: LifecycleOwner, repo: NabtoRepository) : RecyclerView.Adapter<PairingDeviceListAdapter.ViewHolder>() {
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val textView: TextView = view.findViewById(R.id.textView)
         var device: Device? = null
@@ -35,7 +38,7 @@ class PairingDeviceListAdapter(lifecycleOwner: LifecycleOwner) : RecyclerView.Ad
     private var dataSet: List<Device> = listOf()
 
     init {
-        NabtoHeatPumpApplication.scanner.devices.observe(lifecycleOwner) { t ->
+        repo.getScannedDevices().observe(lifecycleOwner) { t ->
             dataSet = t
             for (i in 0..dataSet.size) {
                 notifyItemChanged(i)
@@ -58,6 +61,10 @@ class PairingDeviceListAdapter(lifecycleOwner: LifecycleOwner) : RecyclerView.Ad
 }
 
 class InitialPairingFragment : Fragment() {
+    private val database: DeviceDatabase by inject()
+    private val repo: NabtoRepository by inject()
+    private val service: NabtoConnectionService by inject()
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -65,7 +72,7 @@ class InitialPairingFragment : Fragment() {
         val view = inflater.inflate(R.layout.fragment_initial_pairing, container, false)
 
         val recycler = view.findViewById<RecyclerView>(R.id.initial_pairing_recycler)
-        recycler.adapter = PairingDeviceListAdapter(viewLifecycleOwner)
+        recycler.adapter = PairingDeviceListAdapter(viewLifecycleOwner, repo)
         recycler.layoutManager = LinearLayoutManager(activity)
 
         return view
@@ -76,7 +83,14 @@ class InitialPairingFragment : Fragment() {
             lifecycleScope.launch {
                 withContext(Dispatchers.IO) {
                     val activity = this@InitialPairingFragment.requireActivity()
-                    val connection = NabtoHeatPumpApplication.createConnectionToDevice(activity, device)
+                    val connection = service.createConnection()
+                    val options = JSONObject()
+                    options.put("ProductId", device.productId)
+                    options.put("DeviceId", device.deviceId)
+                    options.put("ServerKey", repo.getClientPrivateKey())
+                    options.put("PrivateKey", repo.getServerKey())
+                    connection.updateOptions(options.toString())
+                    connection.connectAsync()
 
                     try {
                         connection.connect()
@@ -85,7 +99,7 @@ class InitialPairingFragment : Fragment() {
 
                         if (!isPaired) {
                             iam.pairLocalInitial(connection)
-                            val dao = NabtoHeatPumpApplication.deviceDatabase.deviceDao()
+                            val dao = database.deviceDao()
                             // @TODO: Let the user choose a friendly name for the device before inserting
                             dao.insertOrUpdate(device)
                             val snackbar = Snackbar.make(
