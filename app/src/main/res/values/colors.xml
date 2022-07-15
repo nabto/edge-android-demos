@@ -12,6 +12,9 @@
     <color name="orange_600">#fb8c00</color>
     <color name="orange_300">#ffb74d</color>
 
+    <color name="blue_a400">#2979ff</color>
+    <color name="blue_a400_dark">#004ecb</color>
+
     <color name="grey_300">#e0e0e0</color>
     <color name="grey_700">#616161</color>
 </resources>
