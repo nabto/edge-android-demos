@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">Nabto Heatpump Demo</string>
     <string name="title_home">Home</string>
+    <string name="title_pair_new">Pair new device</string>
     <string name="unnamed_device">Unnamed Device</string>
     <string name="temperature_format">%.1f°</string>
     <string-array name="modes_array">

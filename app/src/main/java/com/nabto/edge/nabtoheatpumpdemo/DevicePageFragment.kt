@@ -4,10 +4,9 @@ package com.nabto.edge.nabtoheatpumpdemo
 
 import android.os.Bundle
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.*
+import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.*
@@ -127,7 +126,7 @@ class HeatPumpViewModel(
     }
 }
 
-class DevicePageFragment : Fragment() {
+class DevicePageFragment : Fragment(), MenuProvider {
     private var hasLoaded = false
     private val mainViewModel: MainViewModel by activityViewModels()
     private val model: HeatPumpViewModel by viewModel {
@@ -176,6 +175,8 @@ class DevicePageFragment : Fragment() {
         mainViewModel.setTitle(device.friendlyName.ifEmpty {
             getString(R.string.unnamed_device)
         })
+
+        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
         view.findViewById<TextView>(R.id.dp_info_name).text =
             device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
@@ -249,5 +250,13 @@ class DevicePageFragment : Fragment() {
 
             temperatureView.text = getString(R.string.temperature_format).format(event.state.temperature)
         }
+    }
+
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+        menuInflater.inflate(R.menu.menu_device, menu)
+    }
+
+    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+        return false
     }
 }

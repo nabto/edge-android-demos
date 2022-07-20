@@ -1,17 +1,16 @@
 package com.nabto.edge.nabtoheatpumpdemo
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
+import android.view.*
 import androidx.core.os.bundleOf
+import androidx.core.view.MenuProvider
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -34,7 +33,7 @@ class HomeViewModel(private val database: DeviceDatabase) : ViewModel() {
     }
 }
 
-class HomeFragment : Fragment() {
+class HomeFragment : Fragment(), MenuProvider {
     private val mainViewModel: MainViewModel by activityViewModels()
     private val database: DeviceDatabase by inject()
     private val model: HomeViewModel by viewModel { parametersOf(database) }
@@ -45,7 +44,13 @@ class HomeFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         // Inflate the layout for this fragment
-        val view = inflater.inflate(R.layout.fragment_home, container, false)
+        return inflater.inflate(R.layout.fragment_home, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        mainViewModel.setTitle(getString(R.string.title_home))
+        requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
         val recycler = view.findViewById<RecyclerView>(R.id.home_recycler)
         recycler.adapter = deviceListAdapter
@@ -54,21 +59,22 @@ class HomeFragment : Fragment() {
         model.deviceList.observe(viewLifecycleOwner) { devices ->
             deviceListAdapter.submitDeviceList(devices)
         }
-
-        return view
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        mainViewModel.setTitle(getString(R.string.title_home))
-        val button = view.findViewById<Button>(R.id.main_pair_new_button)
-        button?.setOnClickListener { _ ->
-            findNavController().navigate(R.id.action_homeFragment_to_initialPairingFragment)
-        }
     }
 
     fun onDeviceClick(device: Device) {
         val bundle = bundleOf("device" to device)
         findNavController().navigate(R.id.action_homeFragment_to_devicePageFragment, bundle)
+    }
+
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+        menuInflater.inflate(R.menu.menu_main, menu)
+    }
+
+    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+        if (menuItem.itemId == R.id.action_pair_new) {
+            findNavController().navigate(R.id.action_homeFragment_to_pairNewFragment)
+            return true
+        }
+        return false
     }
 }

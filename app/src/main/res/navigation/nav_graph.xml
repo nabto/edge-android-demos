@@ -21,10 +21,18 @@
         <action
             android:id="@+id/action_homeFragment_to_devicePageFragment"
             app:destination="@id/devicePageFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_pairNewFragment"
+            app:destination="@id/pairNewFragment" />
     </fragment>
     <fragment
         android:id="@+id/devicePageFragment"
         android:name="com.nabto.edge.nabtoheatpumpdemo.DevicePageFragment"
         android:label="fragment_device_page"
         tools:layout="@layout/fragment_device_page" />
+    <fragment
+        android:id="@+id/pairNewFragment"
+        android:name="com.nabto.edge.nabtoheatpumpdemo.PairNewFragment"
+        android:label="fragment_pair_new"
+        tools:layout="@layout/fragment_pair_new" />
 </navigation>
