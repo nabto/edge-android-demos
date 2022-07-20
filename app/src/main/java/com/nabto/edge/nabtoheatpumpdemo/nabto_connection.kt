@@ -44,6 +44,7 @@ abstract class DeviceConnectionBase(
         private set
     protected var connectionState = State.CLOSED
         private set
+    private lateinit var listener: ConnectionEventsCallback
 
 
     override fun subscribe(callback: (e: DeviceConnectionEvent) -> Unit): SubscriberId {
@@ -71,9 +72,14 @@ abstract class DeviceConnectionBase(
     }
 
     override suspend fun connect() {
+        if (connectionState == State.CONNECTED) {
+            // no-op if we're already connected
+            return
+        }
+
         connection = connectionService.createConnection()
         publish(DeviceConnectionEvent.CONNECTING)
-        connection.addConnectionEventsListener(object : ConnectionEventsCallback() {
+        listener = object : ConnectionEventsCallback() {
             override fun onEvent(event: Int) {
                 when (event) {
                     CLOSED -> {
@@ -86,7 +92,8 @@ abstract class DeviceConnectionBase(
                     CONNECTED -> publish(DeviceConnectionEvent.CONNECTED)
                 }
             }
-        })
+        }
+        connection.addConnectionEventsListener(listener);
 
         val options = JSONObject()
         options.put("ProductId", device.productId)
@@ -109,10 +116,12 @@ abstract class DeviceConnectionBase(
     }
 
     override suspend fun close() {
+        val conn = connection
         if (connectionState == State.CONNECTED) {
             publish(DeviceConnectionEvent.CLOSED)
+            conn.removeConnectionEventsListener(listener)
             withContext(Dispatchers.IO) {
-                connection.close()
+                conn.close()
             }
         }
     }

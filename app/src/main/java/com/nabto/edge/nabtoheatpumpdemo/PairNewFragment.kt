@@ -108,15 +108,16 @@ class PairNewFragment : Fragment() {
                     val options = JSONObject()
                     options.put("ProductId", device.productId)
                     options.put("DeviceId", device.deviceId)
-                    options.put("ServerKey", repo.getClientPrivateKey())
-                    options.put("PrivateKey", repo.getServerKey())
+                    options.put("ServerKey", repo.getServerKey())
+                    options.put("PrivateKey", repo.getClientPrivateKey())
                     connection.updateOptions(options.toString())
-                    connection.connectAsync()
 
                     try {
                         connection.connect()
                         val iam = Iam.create()
                         val isPaired = iam.isCurrentUserPaired(connection)
+
+                        Log.i("DeviceDebug", "IsPaired: ${isPaired}")
 
                         if (!isPaired) {
                             iam.pairLocalInitial(connection)
@@ -144,7 +145,7 @@ class PairNewFragment : Fragment() {
                         Log.i("DeviceDebug", "IamException while pairing: ${e.error.name}")
                     }
                     catch (e: NabtoRuntimeException) {
-                        Log.i("DeviceDebug", "NabtoRuntimeException while pairing: ${e.errorCode}")
+                        Log.i("DeviceDebug", "NabtoRuntimeException while pairing: ${e.errorCode.name}")
                     }
                 }
             }

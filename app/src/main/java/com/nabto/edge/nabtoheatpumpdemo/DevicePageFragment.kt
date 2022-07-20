@@ -2,6 +2,7 @@
 
 package com.nabto.edge.nabtoheatpumpdemo
 
+import java.util.concurrent.atomic.AtomicBoolean
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -13,9 +14,7 @@ import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.serialization.*
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -41,15 +40,35 @@ class HeatPumpViewModel(
 
     private val TAG = this.javaClass.simpleName
     private var isConnected = false
+    private var isInBackground = false
+
+    // How many times per second should we request a state update from the device?
     private val updatesPerSecond = 10.0
+
+    // If the app goes into the background, how long do we wait before killing the connection?
+    // (in seconds)
+    private val keepAliveTimeout = 5
 
     init {
         viewModelScope.launch {
             heatPumpConnection.subscribe { onConnectionChanged(it) }
         }
+    }
 
+    fun connect() {
+        isInBackground = false
         viewModelScope.launch {
             heatPumpConnection.connect()
+        }
+    }
+
+    fun disconnect() {
+        isInBackground = true
+        viewModelScope.launch {
+            delay(3 * 1000)
+            if (isInBackground) {
+                heatPumpConnection.close()
+            }
         }
     }
 
@@ -59,29 +78,37 @@ class HeatPumpViewModel(
             DeviceConnectionEvent.CONNECTED -> onConnected()
             DeviceConnectionEvent.DEVICE_DISCONNECTED -> onDeviceDisconnected()
             DeviceConnectionEvent.FAILED_TO_CONNECT -> heatPumpEvent.postValue(HeatPumpEvent.FailedToConnect)
+            DeviceConnectionEvent.CLOSED -> onConnectionClosed()
             else -> {}
         }
     }
 
     private fun onConnected() {
+        isConnected = true
         viewModelScope.launch {
-            isConnected = true
             updateLoop()
         }
     }
 
+    private fun onConnectionClosed() {
+        isConnected = false;
+    }
+
     private fun onDeviceDisconnected() {
+        isConnected = false
         viewModelScope.launch {
-            isConnected = false
             heatPumpEvent.postValue(HeatPumpEvent.LostConnection)
         }
     }
 
     private suspend fun updateLoop() {
-        while (isConnected) {
-            updateHeatPumpState()
-            val delayTime = (1.0 / updatesPerSecond * 1000.0).toLong()
-            delay(delayTime)
+        withContext(Dispatchers.IO) {
+            while (isConnected) {
+                if (isInBackground) continue;
+                updateHeatPumpState()
+                val delayTime = (1.0 / updatesPerSecond * 1000.0).toLong()
+                delay(delayTime)
+            }
         }
     }
 
@@ -211,6 +238,16 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
             override fun onNothingSelected(parent: AdapterView<*>?) { }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        model.connect()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        model.disconnect()
     }
 
     private fun updateViewFromEvent(view: View, event: HeatPumpViewModel.HeatPumpEvent) {
