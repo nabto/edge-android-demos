@@ -4,11 +4,13 @@
     <option name="filePathToZoomLevelMap">
       <map>
         <entry key="../../../../layout/custom_preview.xml" value="0.23385416666666667" />
+        <entry key="..\:/Work/nabto-heatpump-android/app/src/main/res/layout/activity_main.xml" value="0.2658514492753623" />
+        <entry key="..\:/Work/nabto-heatpump-android/app/src/main/res/layout/fragment_home.xml" value="0.2658514492753623" />
         <entry key="app/src/main/res/drawable-v24/ic_launcher_foreground.xml" value="0.2885" />
         <entry key="app/src/main/res/drawable/ic_launcher_background.xml" value="0.2885" />
         <entry key="app/src/main/res/layout/activity_main.xml" value="0.24653167724609376" />
         <entry key="app/src/main/res/layout/fragment_device_page.xml" value="0.3066645304361979" />
-        <entry key="app/src/main/res/layout/fragment_home.xml" value="0.16018662519440124" />
+        <entry key="app/src/main/res/layout/fragment_home.xml" value="0.335" />
         <entry key="app/src/main/res/layout/fragment_initial_pairing.xml" value="0.25" />
         <entry key="app/src/main/res/layout/fragment_pair_new.xml" value="0.29981884057971014" />
         <entry key="app/src/main/res/layout/home_device_list_item.xml" value="0.375" />
@@ -16,8 +18,6 @@
         <entry key="app/src/main/res/layout/text_row_item.xml" value="0.37764841715494796" />
         <entry key="app/src/main/res/menu/bottom_navigation_menu.xml" value="0.36041666666666666" />
         <entry key="app/src/main/res/menu/menu.xml" value="0.1890625" />
-        <entry key="app/src/main/res/menu/menu_device.xml" value="0.18854166666666666" />
-        <entry key="app/src/main/res/menu/menu_main.xml" value="0.18958333333333333" />
         <entry key="app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" value="0.2885" />
       </map>
     </option>

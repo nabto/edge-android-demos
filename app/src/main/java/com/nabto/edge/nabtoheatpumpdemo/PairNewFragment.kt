@@ -1,21 +1,64 @@
 package com.nabto.edge.nabtoheatpumpdemo
 
 import android.os.Bundle
+import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.os.bundleOf
 import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.findFragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.*
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.snackbar.Snackbar
+import com.nabto.edge.client.NabtoRuntimeException
+import com.nabto.edge.client.ktx.connectAsync
+import com.nabto.edge.iamutil.Iam
+import com.nabto.edge.iamutil.IamException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import org.koin.android.ext.android.inject
+
+class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.ViewHolder>() {
+    class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
+        lateinit var device: Device
+        val title: TextView = view.findViewById(R.id.home_device_item_title)
+        val status: TextView = view.findViewById(R.id.home_device_item_subtitle)
+    }
+
+    private var dataSet: List<Device> = listOf()
+
+    fun submitDeviceList(devices: List<Device>) {
+        dataSet = devices
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(
+        parent: ViewGroup,
+        viewType: Int
+    ): ViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.home_device_list_item, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.title.text = dataSet[position].friendlyName.ifEmpty { "Unnamed Device" }
+        holder.status.text = dataSet[position].deviceId
+        holder.view.setOnClickListener {
+            it.findFragment<PairNewFragment>().onDeviceClick(dataSet[position])
+        }
+    }
+
+    override fun getItemCount() = dataSet.size
+}
 
 class PairNewViewModel(private val database: DeviceDatabase) : ViewModel() {
 }
@@ -30,8 +73,9 @@ class PairNewFragment : Fragment() {
     private val mainViewModel: MainViewModel by activityViewModels()
     private val database: DeviceDatabase by inject()
     private val repo: NabtoRepository by inject()
+    private val service: NabtoConnectionService by inject()
     private val model: PairNewViewModel by viewModels { PairNewViewModelFactory(database) }
-    private val deviceListAdapter = DeviceListAdapter()
+    private val deviceListAdapter = PairNewDeviceListAdapter()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -51,6 +95,59 @@ class PairNewFragment : Fragment() {
 
         repo.getScannedDevices().observe(viewLifecycleOwner) { devices ->
             deviceListAdapter.submitDeviceList(devices)
+        }
+    }
+
+    fun onDeviceClick(device: Device) {
+        // @TODO: This is copied over from InitialPairingFragment and is _VERY_ bad, but it's here so that we can pair and test the app for now.
+        if (device != null) {
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) {
+                    val activity = this@PairNewFragment.requireActivity()
+                    val connection = service.createConnection()
+                    val options = JSONObject()
+                    options.put("ProductId", device.productId)
+                    options.put("DeviceId", device.deviceId)
+                    options.put("ServerKey", repo.getClientPrivateKey())
+                    options.put("PrivateKey", repo.getServerKey())
+                    connection.updateOptions(options.toString())
+                    connection.connectAsync()
+
+                    try {
+                        connection.connect()
+                        val iam = Iam.create()
+                        val isPaired = iam.isCurrentUserPaired(connection)
+
+                        if (!isPaired) {
+                            iam.pairLocalInitial(connection)
+                            val dao = database.deviceDao()
+                            // @TODO: Let the user choose a friendly name for the device before inserting
+                            dao.insertOrUpdate(device)
+                            val snackbar = Snackbar.make(
+                                this@PairNewFragment.requireView(),
+                                "Successfully paired",
+                                Snackbar.LENGTH_LONG
+                            )
+                            snackbar.show()
+                        }
+                        else {
+                            val snackbar = Snackbar.make(
+                                this@PairNewFragment.requireView(),
+                                "Already paired",
+                                Snackbar.LENGTH_LONG
+                            )
+                            snackbar.show()
+                        }
+                        connection.close()
+                    }
+                    catch (e: IamException) {
+                        Log.i("DeviceDebug", "IamException while pairing: ${e.error.name}")
+                    }
+                    catch (e: NabtoRuntimeException) {
+                        Log.i("DeviceDebug", "NabtoRuntimeException while pairing: ${e.errorCode}")
+                    }
+                }
+            }
         }
     }
 }
