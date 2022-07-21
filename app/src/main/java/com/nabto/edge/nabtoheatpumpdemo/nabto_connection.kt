@@ -1,7 +1,10 @@
 package com.nabto.edge.nabtoheatpumpdemo
 
+import android.util.Log
 import com.nabto.edge.client.Connection
 import com.nabto.edge.client.ConnectionEventsCallback
+import com.nabto.edge.client.NabtoNoChannelsException
+import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.ktx.connectAsync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -100,6 +103,7 @@ abstract class DeviceConnectionBase(
         options.put("DeviceId", device.deviceId)
         options.put("ServerKey", repo.getServerKey())
         options.put("PrivateKey", repo.getClientPrivateKey())
+        options.put("ServerConnectToken", device.SCT)
         connection.updateOptions(options.toString())
 
         try {
@@ -107,11 +111,12 @@ abstract class DeviceConnectionBase(
             //        for that callback to respond, if we time out then
             //        the device might connect but we never respond to the callback?
             //        Unsure if this is actually the case, needs further investigation
-            withTimeout(2000) {
-                connection.connectAsync()
+            withTimeout(5000) {
+                connection.connect()
             }
-        } catch (e: Exception) {
+        } catch (e: NabtoNoChannelsException) {
             publish(DeviceConnectionEvent.FAILED_TO_CONNECT)
+            Log.i("ConnectionTest", "Remote: ${e.remoteChannelErrorCode.name} Local: ${e.localChannelErrorCode.name}")
         }
     }
 

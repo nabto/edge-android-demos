@@ -19,8 +19,14 @@ import kotlinx.parcelize.Parcelize
 data class Device(
     val productId: String,
     val deviceId: String,
+    val SCT: String,
+    val appName: String,
     val friendlyName: String
-) : Parcelable
+) : Parcelable {
+    fun getDeviceNameOrElse(default: String = ""): String {
+        return friendlyName.ifEmpty { appName.ifEmpty { default } }
+    }
+}
 
 @Dao
 interface DeviceDao {
@@ -66,7 +72,8 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.title.text = dataSet[position].friendlyName.ifEmpty { "Unnamed Device" }
+        // @TODO: Inject context to get string here
+        holder.title.text = dataSet[position].getDeviceNameOrElse("Unnamed Device")
         holder.status.text = dataSet[position].deviceId
         holder.view.setOnClickListener {
             it.findFragment<HomeFragment>().onDeviceClick(dataSet[position])

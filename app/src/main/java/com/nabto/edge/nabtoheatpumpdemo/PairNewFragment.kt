@@ -28,14 +28,14 @@ import org.koin.android.ext.android.inject
 
 class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.ViewHolder>() {
     class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
-        lateinit var device: Device
+        lateinit var device: MdnsDeviceInfo
         val title: TextView = view.findViewById(R.id.home_device_item_title)
         val status: TextView = view.findViewById(R.id.home_device_item_subtitle)
     }
 
-    private var dataSet: List<Device> = listOf()
+    private var dataSet: List<MdnsDeviceInfo> = listOf()
 
-    fun submitDeviceList(devices: List<Device>) {
+    fun submitDeviceList(devices: List<MdnsDeviceInfo>) {
         dataSet = devices
         notifyDataSetChanged()
     }
@@ -50,7 +50,7 @@ class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.V
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.title.text = dataSet[position].friendlyName.ifEmpty { "Unnamed Device" }
+        holder.title.text = dataSet[position].productId
         holder.status.text = dataSet[position].deviceId
         holder.view.setOnClickListener {
             it.findFragment<PairNewFragment>().onDeviceClick(dataSet[position])
@@ -98,7 +98,7 @@ class PairNewFragment : Fragment() {
         }
     }
 
-    fun onDeviceClick(device: Device) {
+    fun onDeviceClick(device: MdnsDeviceInfo) {
         // @TODO: This is copied over from InitialPairingFragment and is _VERY_ bad, but it's here so that we can pair and test the app for now.
         if (device != null) {
             lifecycleScope.launch {
@@ -117,13 +117,20 @@ class PairNewFragment : Fragment() {
                         val iam = Iam.create()
                         val isPaired = iam.isCurrentUserPaired(connection)
 
-                        Log.i("DeviceDebug", "IsPaired: ${isPaired}")
-
                         if (!isPaired) {
                             iam.pairLocalInitial(connection)
+                            val user = iam.getCurrentUser(connection)
+                            val details = iam.getDeviceDetails(connection)
+                            val updatedDevice = Device(
+                                details.productId,
+                                details.deviceId,
+                                user.sct,
+                                details.appName ?: "",
+                                ""
+                            )
                             val dao = database.deviceDao()
                             // @TODO: Let the user choose a friendly name for the device before inserting
-                            dao.insertOrUpdate(device)
+                            dao.insertOrUpdate(updatedDevice)
                             val snackbar = Snackbar.make(
                                 this@PairNewFragment.requireView(),
                                 "Successfully paired",

@@ -6,18 +6,10 @@
     app:startDestination="@id/homeFragment">
 
     <fragment
-        android:id="@+id/initialPairingFragment"
-        android:name="com.nabto.edge.nabtoheatpumpdemo.InitialPairingFragment"
-        android:label="fragment_initial_pairing"
-        tools:layout="@layout/fragment_initial_pairing" />
-    <fragment
         android:id="@+id/homeFragment"
         android:name="com.nabto.edge.nabtoheatpumpdemo.HomeFragment"
         android:label="fragment_home"
         tools:layout="@layout/fragment_home" >
-        <action
-            android:id="@+id/action_homeFragment_to_initialPairingFragment"
-            app:destination="@id/initialPairingFragment" />
         <action
             android:id="@+id/action_homeFragment_to_devicePageFragment"
             app:destination="@id/devicePageFragment" />

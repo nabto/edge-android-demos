@@ -21,7 +21,7 @@ import org.koin.dsl.module
 interface NabtoRepository {
     fun getClientPrivateKey(): String
     fun getServerKey(): String
-    fun getScannedDevices(): LiveData<List<Device>>
+    fun getScannedDevices(): LiveData<List<MdnsDeviceInfo>>
     fun getApplicationScope(): CoroutineScope
 }
 
@@ -29,9 +29,14 @@ interface NabtoConnectionService {
     fun createConnection(): Connection
 }
 
+data class MdnsDeviceInfo(
+    val productId: String,
+    val deviceId: String
+)
+
 class NabtoDeviceScanner(nabtoClient: NabtoClient) {
-    private val deviceMap = HashMap<String, Device>()
-    val devices: MutableLiveData<List<Device>> = MutableLiveData()
+    private val deviceMap = HashMap<String, MdnsDeviceInfo>()
+    val devices: MutableLiveData<List<MdnsDeviceInfo>> = MutableLiveData()
 
     init {
         nabtoClient.addMdnsResultListener { result ->
@@ -39,7 +44,7 @@ class NabtoDeviceScanner(nabtoClient: NabtoClient) {
                 MdnsResult.Action.ADD,
                 MdnsResult.Action.UPDATE -> {
                     deviceMap[result.serviceInstanceName] =
-                        Device(result.productId, result.deviceId, "")
+                        MdnsDeviceInfo(result.productId, result.deviceId)
                 }
                 MdnsResult.Action.REMOVE -> {
                     deviceMap.remove(result.serviceInstanceName)
@@ -81,7 +86,7 @@ private class NabtoRepositoryImpl(
         return scope
     }
 
-    override fun getScannedDevices(): LiveData<List<Device>> {
+    override fun getScannedDevices(): LiveData<List<MdnsDeviceInfo>> {
         return scanner.devices
     }
 }

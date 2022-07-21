@@ -80,9 +80,6 @@ class HeatPumpConnection(
             code()
         } catch (e: NabtoRuntimeException) {
             // @TODO: Log errors here
-            withContext(Dispatchers.IO) {
-                connection.close()
-            }
             errorVal
         }
     }

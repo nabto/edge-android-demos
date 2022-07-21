@@ -47,7 +47,7 @@ class HeatPumpViewModel(
 
     // If the app goes into the background, how long do we wait before killing the connection?
     // (in seconds)
-    private val keepAliveTimeout = 5
+    private val keepAliveTimeout = 5L
 
     init {
         viewModelScope.launch {
@@ -65,7 +65,7 @@ class HeatPumpViewModel(
     fun disconnect() {
         isInBackground = true
         viewModelScope.launch {
-            delay(3 * 1000)
+            delay(keepAliveTimeout * 1000)
             if (isInBackground) {
                 heatPumpConnection.close()
             }
@@ -142,7 +142,11 @@ class HeatPumpViewModel(
 
     private suspend fun updateHeatPumpState() {
         val state = heatPumpConnection.getState()
-        heatPumpEvent.postValue(HeatPumpEvent.Update(state))
+        if (state.valid) {
+            heatPumpEvent.postValue(HeatPumpEvent.Update(state))
+        } else {
+            heatPumpEvent.postValue(HeatPumpEvent.LostConnection)
+        }
     }
 
     override fun onCleared() {
@@ -199,14 +203,11 @@ class DevicePageFragment : Fragment(), MenuProvider {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        mainViewModel.setTitle(device.friendlyName.ifEmpty {
-            getString(R.string.unnamed_device)
-        })
+        mainViewModel.setTitle(device.getDeviceNameOrElse(getString(R.string.unnamed_device)))
 
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
-        view.findViewById<TextView>(R.id.dp_info_name).text =
-            device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
+        view.findViewById<TextView>(R.id.dp_info_name).text = device.getDeviceNameOrElse(getString(R.string.unnamed_device))
         view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
         view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
 
