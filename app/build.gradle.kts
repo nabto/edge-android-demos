@@ -73,9 +73,10 @@ dependencies {
     testImplementation ("io.insert-koin:koin-test:$koin_version")
 
     // Nabto dependencies
-    implementation ("com.nabto.edge.client:library:kotlin-api-SNAPSHOT")
-    implementation ("com.nabto.edge.client:library-ktx:PR-1-SNAPSHOT")
-    implementation ("com.nabto.edge.client:iam-util:kotlin-api-SNAPSHOT")
+    implementation ("com.nabto.edge.client:library:master-SNAPSHOT")
+    implementation ("com.nabto.edge.client:library-ktx:master-SNAPSHOT")
+    implementation ("com.nabto.edge.client:iam-util:master-SNAPSHOT")
+    implementation ("com.nabto.edge.client:iam-util-ktx:master-SNAPSHOT")
 
     // Room persistence library to use a database abstracted over sqlite
     val roomVersion = "2.4.2"

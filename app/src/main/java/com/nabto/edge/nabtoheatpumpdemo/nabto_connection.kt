@@ -5,7 +5,6 @@ import com.nabto.edge.client.Connection
 import com.nabto.edge.client.ConnectionEventsCallback
 import com.nabto.edge.client.NabtoNoChannelsException
 import com.nabto.edge.client.NabtoRuntimeException
-import com.nabto.edge.client.ktx.connectAsync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout

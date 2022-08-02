@@ -16,8 +16,7 @@ import com.nabto.edge.client.Coap
 import com.nabto.edge.client.Connection
 import com.nabto.edge.client.ConnectionEventsCallback
 import com.nabto.edge.client.NabtoRuntimeException
-import com.nabto.edge.client.ktx.connectAsync
-import com.nabto.edge.client.ktx.executeAsync
+import com.nabto.edge.client.ktx.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -87,7 +86,7 @@ class HeatPumpConnection(
     suspend fun getState(): HeatPumpState {
         return safeCall(invalidState) {
             val coap = connection.createCoap("GET", "/heat-pump")
-            coap.executeAsync()
+            coap.awaitExecute()
             val data = coap.responsePayload
             val statusCode = coap.responseStatusCode
 
@@ -104,7 +103,7 @@ class HeatPumpConnection(
             val coap = connection.createCoap("POST", "/heat-pump/mode")
             val cbor = Cbor.encodeToByteArray(mode.string)
             coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
-            coap.executeAsync()
+            coap.awaitExecute()
             if (coap.responseStatusCode != 204) {
                 // @TODO: Better error handling
                 throw(Exception("Failed to set heat pump power state"))
@@ -117,7 +116,7 @@ class HeatPumpConnection(
             val coap = connection.createCoap("POST", "/heat-pump/power")
             val cbor = Cbor.encodeToByteArray(power)
             coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
-            coap.executeAsync()
+            coap.awaitExecute()
             if (coap.responseStatusCode != 204) {
                 // @TODO: Better error handling
                 throw(Exception("Failed to set heat pump power state"))
@@ -130,7 +129,7 @@ class HeatPumpConnection(
             val coap = connection.createCoap("POST", "/heat-pump/target")
             val cbor = Cbor.encodeToByteArray(target)
             coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
-            coap.executeAsync()
+            coap.awaitExecute()
             if (coap.responseStatusCode != 204) {
                 // @TODO: Better error handling
                 throw(Exception("Failed to set heat pump target temperature"))

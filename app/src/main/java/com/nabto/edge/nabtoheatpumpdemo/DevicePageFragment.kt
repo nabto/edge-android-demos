@@ -23,6 +23,7 @@ import org.koin.core.parameter.parametersOf
 // @TODO: Clicking on a device should dispatch to a correct fragment for that device
 //        E.g. click on heatpump device -> navigate to a heatpump fragment
 //        Currently we always navigate to DevicePageFragment which is just a heatpump fragment
+// @TODO: Closing the app before the connection manages to close will not shut down the connection
 
 class HeatPumpViewModel(
     private val repo: NabtoRepository,

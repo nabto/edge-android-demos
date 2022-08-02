@@ -7,22 +7,19 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.core.os.bundleOf
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.findFragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.*
-import androidx.navigation.fragment.findNavController
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import com.nabto.edge.client.NabtoRuntimeException
-import com.nabto.edge.client.ktx.connectAsync
-import com.nabto.edge.iamutil.Iam
 import com.nabto.edge.iamutil.IamException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.nabto.edge.iamutil.IamUtil
+import kotlinx.coroutines.*
 import org.json.JSONObject
 import org.koin.android.ext.android.inject
 
@@ -103,7 +100,6 @@ class PairNewFragment : Fragment() {
         if (device != null) {
             lifecycleScope.launch {
                 withContext(Dispatchers.IO) {
-                    val activity = this@PairNewFragment.requireActivity()
                     val connection = service.createConnection()
                     val options = JSONObject()
                     options.put("ProductId", device.productId)
@@ -114,7 +110,7 @@ class PairNewFragment : Fragment() {
 
                     try {
                         connection.connect()
-                        val iam = Iam.create()
+                        val iam = IamUtil.create()
                         val isPaired = iam.isCurrentUserPaired(connection)
 
                         if (!isPaired) {
