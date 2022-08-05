@@ -5,10 +5,15 @@ import com.nabto.edge.client.Connection
 import com.nabto.edge.client.ConnectionEventsCallback
 import com.nabto.edge.client.NabtoNoChannelsException
 import com.nabto.edge.client.NabtoRuntimeException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import com.nabto.edge.iamutil.IamUtil
+import com.nabto.edge.iamutil.ktx.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 enum class DeviceConnectionEvent {
     CONNECTING,
@@ -28,7 +33,7 @@ interface DeviceConnection {
 }
 
 abstract class DeviceConnectionBase(
-    private val repo: NabtoRepository,
+    private val repo: NabtoRepository, // needed for server key and client private key
     private val device: Device,
     private val connectionService: NabtoConnectionService
 ) : DeviceConnection {
@@ -38,7 +43,7 @@ abstract class DeviceConnectionBase(
         CONNECTED
     }
 
-    private var nextIndex = 0
+    private var nextIndex = AtomicInteger(0)
     private val subscribers: MutableMap<SubscriberId, (e: DeviceConnectionEvent) -> Unit> =
         mutableMapOf()
 
@@ -50,7 +55,7 @@ abstract class DeviceConnectionBase(
 
 
     override fun subscribe(callback: (e: DeviceConnectionEvent) -> Unit): SubscriberId {
-        val id = SubscriberId(nextIndex++)
+        val id = SubscriberId(nextIndex.incrementAndGet())
         subscribers[id] = callback
         return id
     }
@@ -106,7 +111,7 @@ abstract class DeviceConnectionBase(
         connection.updateOptions(options.toString())
 
         try {
-            // @TODO: connectAsync would set a callback and wait
+            // @TODO: awaitConnect would set a callback and wait
             //        for that callback to respond, if we time out then
             //        the device might connect but we never respond to the callback?
             //        Unsure if this is actually the case, needs further investigation
@@ -115,10 +120,10 @@ abstract class DeviceConnectionBase(
             }
         } catch (e: NabtoNoChannelsException) {
             publish(DeviceConnectionEvent.FAILED_TO_CONNECT)
-            Log.i("ConnectionTest", "Remote: ${e.remoteChannelErrorCode.name} Local: ${e.localChannelErrorCode.name}")
         }
     }
 
+    // It's safe to call close() multiple times
     override suspend fun close() {
         val conn = connection
         if (connectionState == State.CONNECTED) {
@@ -128,5 +133,53 @@ abstract class DeviceConnectionBase(
                 conn.close()
             }
         }
+    }
+}
+
+/**
+ * Helper class for pairing new users
+ */
+class UnpairedDeviceConnection(
+    private val repo: NabtoRepository,
+    private val device: Device,
+    private val connectionService: NabtoConnectionService
+) : DeviceConnectionBase(repo, device, connectionService) {
+    private var password = ""
+
+    private val iam by lazy {
+        IamUtil.create()
+    }
+
+    suspend fun passwordAuthenticate(pw: String) {
+        password = pw
+        withContext(Dispatchers.IO) {
+            connection.passwordAuthenticate("", password)
+        }
+    }
+
+    suspend fun isCurrentUserPaired(): Boolean {
+        return iam.awaitIsCurrentUserPaired(connection)
+    }
+
+    suspend fun getDeviceDetails(friendlyDeviceName: String): Device {
+        val details = iam.awaitGetDeviceDetails(connection)
+        val user = iam.awaitGetCurrentUser(connection)
+        return Device(
+            details.productId,
+            details.deviceId,
+            user.sct,
+            details.appName ?: "",
+            friendlyDeviceName
+        )
+    }
+
+    suspend fun pairLocalOpen(desiredUsername: String, friendlyDeviceName: String): Device {
+        iam.awaitPairLocalOpen(connection, desiredUsername)
+        return getDeviceDetails(friendlyDeviceName)
+    }
+
+    suspend fun pairLocalPassword(desiredUsername: String, friendlyDeviceName: String): Device {
+        iam.awaitPairPasswordOpen(connection, desiredUsername, password)
+        return getDeviceDetails(friendlyDeviceName)
     }
 }

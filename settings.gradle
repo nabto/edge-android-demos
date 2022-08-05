@@ -10,10 +10,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven {
-            // @TODO: May need to remove this when library is pushed to maven proper
-            url "https://s01.oss.sonatype.org/content/repositories/snapshots/"
-        }
     }
 }
 

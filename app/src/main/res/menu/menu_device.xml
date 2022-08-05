@@ -2,7 +2,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
-        android:id="@+id/action_favorite"
+        android:id="@+id/action_device_settings"
         android:icon="@drawable/ic_baseline_settings_48"
         android:title="Device Settings"
         app:showAsAction="ifRoom"/>

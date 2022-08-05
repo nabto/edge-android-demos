@@ -5,26 +5,64 @@
     android:id="@+id/nav_graph"
     app:startDestination="@id/homeFragment">
 
+    <action
+        android:id="@+id/action_nav_return_home"
+        app:destination="@id/homeFragment"
+        app:popUpTo="@id/nav_graph"
+        app:popUpToInclusive="true"
+        />
+
     <fragment
         android:id="@+id/homeFragment"
         android:name="com.nabto.edge.nabtoheatpumpdemo.HomeFragment"
-        android:label="fragment_home"
+        android:label="@string/title_home"
         tools:layout="@layout/fragment_home" >
         <action
             android:id="@+id/action_homeFragment_to_devicePageFragment"
-            app:destination="@id/devicePageFragment" />
+            app:destination="@id/device_graph" />
         <action
             android:id="@+id/action_homeFragment_to_pairNewFragment"
             app:destination="@id/pairNewFragment" />
     </fragment>
     <fragment
-        android:id="@+id/devicePageFragment"
-        android:name="com.nabto.edge.nabtoheatpumpdemo.DevicePageFragment"
-        android:label="fragment_device_page"
-        tools:layout="@layout/fragment_device_page" />
-    <fragment
         android:id="@+id/pairNewFragment"
         android:name="com.nabto.edge.nabtoheatpumpdemo.PairNewFragment"
-        android:label="fragment_pair_new"
-        tools:layout="@layout/fragment_pair_new" />
+        android:label="@string/title_pair_new"
+        tools:layout="@layout/fragment_pair_new" >
+        <action
+            android:id="@+id/action_pairNewFragment_to_pairDeviceFragment"
+            app:destination="@id/pairDeviceFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/pairDeviceFragment"
+        android:name="com.nabto.edge.nabtoheatpumpdemo.PairDeviceFragment"
+        android:label="Pair with {deviceId}">
+        <argument android:name="productId"
+            app:argType="string" />
+        <argument android:name="deviceId"
+            app:argType="string" />
+        <argument android:name="password"
+            app:argType="string" />
+        <deepLink
+            app:action="ACTION_VIEW"
+            app:uri="nabto://androiddemo/pairing/{productId}/{deviceId}/{password}" />
+    </fragment>
+    <navigation android:id="@+id/device_graph"
+        app:startDestination="@id/devicePageFragment">
+        <fragment
+            android:id="@+id/deviceSettingsFragment"
+            android:name="com.nabto.edge.nabtoheatpumpdemo.DeviceSettingsFragment"
+            android:label="fragment_device_settings"
+            tools:layout="@layout/fragment_device_settings" />
+        <fragment
+            android:id="@+id/devicePageFragment"
+            android:name="com.nabto.edge.nabtoheatpumpdemo.DevicePageFragment"
+            android:label="{title}"
+            tools:layout="@layout/fragment_device_page">
+            <argument android:name="title" />
+            <action
+                android:id="@+id/action_devicePageFragment_to_deviceSettingsFragment"
+                app:destination="@id/deviceSettingsFragment" />
+        </fragment>
+    </navigation>
 </navigation>

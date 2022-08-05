@@ -42,6 +42,9 @@ android {
         jvmTarget = "1.8"
         freeCompilerArgs = freeCompilerArgs + "-Xjvm-default=all"
     }
+    buildFeatures {
+        viewBinding = true
+    }
 }
 
 dependencies {
@@ -63,6 +66,8 @@ dependencies {
     implementation ("org.jetbrains.kotlinx:kotlinx-serialization-cbor:1.3.2")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.3")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.3")
+    implementation("androidx.annotation:annotation:1.2.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1")
 
     // Koin dependency injection
     val koin_version = "3.2.0"
@@ -73,10 +78,10 @@ dependencies {
     testImplementation ("io.insert-koin:koin-test:$koin_version")
 
     // Nabto dependencies
-    implementation ("com.nabto.edge.client:library:master-SNAPSHOT")
-    implementation ("com.nabto.edge.client:library-ktx:master-SNAPSHOT")
-    implementation ("com.nabto.edge.client:iam-util:master-SNAPSHOT")
-    implementation ("com.nabto.edge.client:iam-util-ktx:master-SNAPSHOT")
+    implementation ("com.nabto.edge.client:library:2.2.0")
+    implementation ("com.nabto.edge.client:library-ktx:2.2.0")
+    implementation ("com.nabto.edge.client:iam-util:2.2.0")
+    implementation ("com.nabto.edge.client:iam-util-ktx:2.2.0")
 
     // Room persistence library to use a database abstracted over sqlite
     val roomVersion = "2.4.2"

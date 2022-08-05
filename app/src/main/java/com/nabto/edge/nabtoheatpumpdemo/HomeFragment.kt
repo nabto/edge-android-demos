@@ -34,7 +34,6 @@ class HomeViewModel(private val database: DeviceDatabase) : ViewModel() {
 }
 
 class HomeFragment : Fragment(), MenuProvider {
-    private val mainViewModel: MainViewModel by activityViewModels()
     private val database: DeviceDatabase by inject()
     private val model: HomeViewModel by viewModel { parametersOf(database) }
     private val deviceListAdapter = DeviceListAdapter()
@@ -49,7 +48,6 @@ class HomeFragment : Fragment(), MenuProvider {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        mainViewModel.setTitle(getString(R.string.title_home))
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
         val recycler = view.findViewById<RecyclerView>(R.id.home_recycler)
@@ -62,7 +60,8 @@ class HomeFragment : Fragment(), MenuProvider {
     }
 
     fun onDeviceClick(device: Device) {
-        val bundle = bundleOf("device" to device)
+        val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
+        val bundle = bundleOf("device" to device, "title" to title)
         findNavController().navigate(R.id.action_homeFragment_to_devicePageFragment, bundle)
     }
 

@@ -33,6 +33,9 @@ interface DeviceDao {
     @Query("SELECT * FROM devices")
     fun getAll(): Flow<List<Device>>
 
+    @Query("SELECT EXISTS(SELECT * FROM devices WHERE productId = :productId AND productId = :deviceId)")
+    fun exists(productId: String, deviceId: String): Boolean
+
     @Update
     fun update(device: Device)
 

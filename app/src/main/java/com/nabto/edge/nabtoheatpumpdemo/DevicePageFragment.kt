@@ -2,28 +2,48 @@
 
 package com.nabto.edge.nabtoheatpumpdemo
 
-import java.util.concurrent.atomic.AtomicBoolean
 import android.os.Bundle
 import android.util.Log
 import android.view.*
 import android.widget.*
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
+import androidx.navigation.navGraphViewModels
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
-import kotlinx.coroutines.*
-import kotlinx.serialization.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
 import org.koin.android.ext.android.inject
-import org.koin.androidx.viewmodel.ext.android.viewModel
-import org.koin.core.parameter.parametersOf
 
 // @TODO: Clicking on a device should dispatch to a correct fragment for that device
 //        E.g. click on heatpump device -> navigate to a heatpump fragment
 //        Currently we always navigate to DevicePageFragment which is just a heatpump fragment
+//
 // @TODO: Closing the app before the connection manages to close will not shut down the connection
+//
+// @TODO: Going to the device settings page has the DevicePageFragment enter a paused lifecycle staet
+//        this means that the connection is eventually dropped if one doesnt return to the DevicePageFragment
+//        This happens because of onStop/onResume being used for when the app enters background
+//        Maybe we can detect going into the background in a different way?
+
+class HeatPumpViewModelFactory(
+    private val repo: NabtoRepository,
+    private val device: Device,
+    private val connectionService: NabtoConnectionService,
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return modelClass.getConstructor(
+            NabtoRepository::class.java,
+            Device::class.java,
+            NabtoConnectionService::class.java
+        ).newInstance(repo, device, connectionService)
+    }
+}
 
 class HeatPumpViewModel(
     private val repo: NabtoRepository,
@@ -31,12 +51,13 @@ class HeatPumpViewModel(
     connectionService: NabtoConnectionService,
 ) : ViewModel() {
     sealed class HeatPumpEvent {
-        class Update(val state: HeatPumpState): HeatPumpEvent()
-        object LostConnection: HeatPumpEvent()
-        object FailedToConnect: HeatPumpEvent()
+        class Update(val state: HeatPumpState) : HeatPumpEvent()
+        object LostConnection : HeatPumpEvent()
+        object FailedToConnect : HeatPumpEvent()
     }
 
-    private val heatPumpConnection: HeatPumpConnection = HeatPumpConnection(repo, device, connectionService)
+    private val heatPumpConnection: HeatPumpConnection =
+        HeatPumpConnection(repo, device, connectionService)
     private val heatPumpEvent: MutableLiveData<HeatPumpEvent> = MutableLiveData()
 
     private val TAG = this.javaClass.simpleName
@@ -159,34 +180,22 @@ class HeatPumpViewModel(
 }
 
 class DevicePageFragment : Fragment(), MenuProvider {
-    private var hasLoaded = false
-    private val mainViewModel: MainViewModel by activityViewModels()
-    private val model: HeatPumpViewModel by viewModel {
+    private val model: HeatPumpViewModel by navGraphViewModels(R.id.device_graph) {
         val repo: NabtoRepository by inject()
         val service: NabtoConnectionService by inject()
-        parametersOf(
+        HeatPumpViewModelFactory(
             repo,
             requireArguments().get("device") as Device,
             service
         )
     }
+
+    private var hasLoaded = false
     private lateinit var device: Device
-
-    private val temperatureView: TextView by lazy {
-        requireView().findViewById(R.id.dp_temperature)
-    }
-
-    private val modeSpinnerView: Spinner by lazy {
-        requireView().findViewById(R.id.dp_mode_spinner)
-    }
-
-    private val powerSwitchView: Switch by lazy {
-        requireView().findViewById(R.id.dp_power_switch)
-    }
-
-    private val targetSliderView: Slider by lazy {
-        requireView().findViewById(R.id.dp_target_slider)
-    }
+    private lateinit var temperatureView: TextView
+    private lateinit var modeSpinnerView: Spinner
+    private lateinit var powerSwitchView: Switch
+    private lateinit var targetSliderView: Slider
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -203,12 +212,16 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        mainViewModel.setTitle(device.getDeviceNameOrElse(getString(R.string.unnamed_device)))
-
+        hasLoaded = false
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
-        view.findViewById<TextView>(R.id.dp_info_name).text = device.getDeviceNameOrElse(getString(R.string.unnamed_device))
+        temperatureView = view.findViewById(R.id.dp_temperature)
+        modeSpinnerView = view.findViewById(R.id.dp_mode_spinner)
+        powerSwitchView = view.findViewById(R.id.dp_power_switch)
+        targetSliderView = view.findViewById(R.id.dp_target_slider)
+
+        view.findViewById<TextView>(R.id.dp_info_name).text =
+            device.getDeviceNameOrElse(getString(R.string.unnamed_device))
         view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
         view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
 
@@ -238,7 +251,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
                 model.setMode(mode)
             }
 
-            override fun onNothingSelected(parent: AdapterView<*>?) { }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
     }
 
@@ -287,7 +300,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
                 view.findViewById<View>(R.id.dp_main).visibility = View.VISIBLE
             }
 
-            temperatureView.text = getString(R.string.temperature_format).format(event.state.temperature)
+            temperatureView.text =
+                getString(R.string.temperature_format).format(event.state.temperature)
         }
     }
 
@@ -296,6 +310,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
     }
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+        if (menuItem.itemId == R.id.action_device_settings) {
+            findNavController().navigate(R.id.action_devicePageFragment_to_deviceSettingsFragment)
+            return true
+        }
         return false
     }
 }
