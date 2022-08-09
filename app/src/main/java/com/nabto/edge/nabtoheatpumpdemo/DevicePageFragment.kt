@@ -13,11 +13,12 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.ExperimentalSerializationApi
+import com.nabto.edge.client.Coap
+import com.nabto.edge.client.NabtoRuntimeException
+import com.nabto.edge.client.ktx.awaitExecute
+import kotlinx.coroutines.*
+import kotlinx.serialization.*
+import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
 
 // @TODO: Clicking on a device should dispatch to a correct fragment for that device
@@ -31,24 +32,59 @@ import org.koin.android.ext.android.inject
 //        This happens because of onStop/onResume being used for when the app enters background
 //        Maybe we can detect going into the background in a different way?
 
+enum class HeatPumpMode(val string: String) {
+    COOL("COOL"),
+    HEAT("HEAT"),
+    FAN("FAN"),
+    DRY("DRY"),
+    UNKNOWN("")
+}
+
+data class HeatPumpState(
+    var mode: HeatPumpMode,
+    var power: Boolean,
+    var target: Double,
+    var temperature: Double,
+    val valid: Boolean = true
+)
+
+internal fun decodeHeatPumpStateFromCBOR(cbor: ByteArray): HeatPumpState {
+    @Serializable
+    data class HeatPumpCoapState(
+        @Required @SerialName("Mode") val mode: String,
+        @Required @SerialName("Power") val power: Boolean,
+        @Required @SerialName("Target") val target: Double,
+        @Required @SerialName("Temperature") val temperature: Double
+    )
+
+    val state = Cbor.decodeFromByteArray<HeatPumpCoapState>(cbor)
+    return HeatPumpState(
+        HeatPumpMode.valueOf(state.mode),
+        state.power,
+        state.target,
+        state.temperature,
+        true
+    )
+}
+
 class HeatPumpViewModelFactory(
     private val repo: NabtoRepository,
     private val device: Device,
-    private val connectionService: NabtoConnectionService,
+    private val connectionManager: NabtoConnectionManager,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return modelClass.getConstructor(
             NabtoRepository::class.java,
             Device::class.java,
-            NabtoConnectionService::class.java
-        ).newInstance(repo, device, connectionService)
+            NabtoConnectionManager::class.java
+        ).newInstance(repo, device, connectionManager)
     }
 }
 
 class HeatPumpViewModel(
     private val repo: NabtoRepository,
     device: Device,
-    connectionService: NabtoConnectionService,
+    private val connectionManager: NabtoConnectionManager
 ) : ViewModel() {
     sealed class HeatPumpEvent {
         class Update(val state: HeatPumpState) : HeatPumpEvent()
@@ -56,68 +92,46 @@ class HeatPumpViewModel(
         object FailedToConnect : HeatPumpEvent()
     }
 
-    private val heatPumpConnection: HeatPumpConnection =
-        HeatPumpConnection(repo, device, connectionService)
     private val heatPumpEvent: MutableLiveData<HeatPumpEvent> = MutableLiveData()
 
     private val TAG = this.javaClass.simpleName
     private var isConnected = false
-    private var isInBackground = false
+    private var isPaused = false
+    private lateinit var updateLoopJob: Job
+    private val handle = connectionManager.requestConnection(device, { onConnectionChanged(it) })
 
     // How many times per second should we request a state update from the device?
     private val updatesPerSecond = 10.0
 
-    // If the app goes into the background, how long do we wait before killing the connection?
-    // (in seconds)
-    private val keepAliveTimeout = 5L
-
-    init {
-        viewModelScope.launch {
-            heatPumpConnection.subscribe { onConnectionChanged(it) }
-        }
-    }
-
-    fun connect() {
-        isInBackground = false
-        viewModelScope.launch {
-            heatPumpConnection.connect()
-        }
-    }
-
-    fun disconnect() {
-        isInBackground = true
-        viewModelScope.launch {
-            delay(keepAliveTimeout * 1000)
-            if (isInBackground) {
-                heatPumpConnection.close()
-            }
-        }
-    }
-
-    private fun onConnectionChanged(state: DeviceConnectionEvent) {
+    private fun onConnectionChanged(state: NabtoConnectionEvent) {
         Log.i(TAG, "Device connection state changed to: $state")
         when (state) {
-            DeviceConnectionEvent.CONNECTED -> onConnected()
-            DeviceConnectionEvent.DEVICE_DISCONNECTED -> onDeviceDisconnected()
-            DeviceConnectionEvent.FAILED_TO_CONNECT -> heatPumpEvent.postValue(HeatPumpEvent.FailedToConnect)
-            DeviceConnectionEvent.CLOSED -> onConnectionClosed()
+            NabtoConnectionEvent.CONNECTED -> onConnected()
+            NabtoConnectionEvent.DEVICE_DISCONNECTED -> onDeviceDisconnected()
+            NabtoConnectionEvent.FAILED_TO_CONNECT -> heatPumpEvent.postValue(HeatPumpEvent.FailedToConnect)
+            NabtoConnectionEvent.CLOSED -> onConnectionClosed()
+            NabtoConnectionEvent.PAUSED -> { isPaused = true }
+            NabtoConnectionEvent.UNPAUSED -> { isPaused = false }
             else -> {}
         }
     }
 
     private fun onConnected() {
         isConnected = true
-        viewModelScope.launch {
+        isPaused = false
+        updateLoopJob = viewModelScope.launch {
             updateLoop()
         }
     }
 
     private fun onConnectionClosed() {
-        isConnected = false;
+        isConnected = false
+        updateLoopJob.cancel()
     }
 
     private fun onDeviceDisconnected() {
         isConnected = false
+        updateLoopJob.cancel()
         viewModelScope.launch {
             heatPumpEvent.postValue(HeatPumpEvent.LostConnection)
         }
@@ -126,7 +140,7 @@ class HeatPumpViewModel(
     private suspend fun updateLoop() {
         withContext(Dispatchers.IO) {
             while (isConnected) {
-                if (isInBackground) continue;
+                if (isPaused) continue
                 updateHeatPumpState()
                 val delayTime = (1.0 / updatesPerSecond * 1000.0).toLong()
                 delay(delayTime)
@@ -138,10 +152,28 @@ class HeatPumpViewModel(
         return heatPumpEvent
     }
 
+    private suspend fun <T> safeCall(errorVal: T, code: suspend () -> T): T {
+        return try {
+            code()
+        } catch (e: NabtoRuntimeException) {
+            // @TODO: Log errors here
+            errorVal
+        }
+    }
+
     fun setPower(toggled: Boolean) {
         if (!isConnected) return
         viewModelScope.launch {
-            heatPumpConnection.setPower(toggled)
+            safeCall({}) {
+                val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/power")
+                val cbor = Cbor.encodeToByteArray(toggled)
+                coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
+                coap.awaitExecute()
+                if (coap.responseStatusCode != 204) {
+                    // @TODO: Better error handling
+                    throw(Exception("Failed to set heat pump power state"))
+                }
+            }
             updateHeatPumpState()
         }
     }
@@ -149,21 +181,51 @@ class HeatPumpViewModel(
     fun setMode(mode: HeatPumpMode) {
         if (!isConnected) return
         viewModelScope.launch {
-            heatPumpConnection.setMode(mode)
+            safeCall({}) {
+                val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/mode")
+                val cbor = Cbor.encodeToByteArray(mode.string)
+                coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
+                coap.awaitExecute()
+                if (coap.responseStatusCode != 204) {
+                    // @TODO: Better error handling
+                    throw(Exception("Failed to set heat pump power state"))
+                }
+            }
             updateHeatPumpState()
         }
     }
 
-    fun setTarget(value: Double) {
+    fun setTarget(target: Double) {
         if (!isConnected) return
         viewModelScope.launch {
-            heatPumpConnection.setTarget(value)
+            safeCall({}) {
+                val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/target")
+                val cbor = Cbor.encodeToByteArray(target)
+                coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
+                coap.awaitExecute()
+                if (coap.responseStatusCode != 204) {
+                    // @TODO: Better error handling
+                    throw(Exception("Failed to set heat pump target temperature"))
+                }
+            }
             updateHeatPumpState()
         }
     }
 
     private suspend fun updateHeatPumpState() {
-        val state = heatPumpConnection.getState()
+        val invalidState = HeatPumpState(HeatPumpMode.UNKNOWN, false, 0.0, 0.0, false)
+        val state = safeCall(invalidState) {
+            val coap = connectionManager.createCoap(handle, "GET", "/heat-pump")
+            coap.awaitExecute()
+            val data = coap.responsePayload
+            val statusCode = coap.responseStatusCode
+
+            if (statusCode != 205) {
+                return@safeCall invalidState
+            }
+
+            return@safeCall decodeHeatPumpStateFromCBOR(data)
+        }
         if (state.valid) {
             heatPumpEvent.postValue(HeatPumpEvent.Update(state))
         } else {
@@ -173,20 +235,18 @@ class HeatPumpViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        repo.getApplicationScope().launch {
-            heatPumpConnection.close()
-        }
+        connectionManager.releaseHandle(handle)
     }
 }
 
 class DevicePageFragment : Fragment(), MenuProvider {
     private val model: HeatPumpViewModel by navGraphViewModels(R.id.device_graph) {
         val repo: NabtoRepository by inject()
-        val service: NabtoConnectionService by inject()
+        val connectionManager: NabtoConnectionManager by inject()
         HeatPumpViewModelFactory(
             repo,
             requireArguments().get("device") as Device,
-            service
+            connectionManager
         )
     }
 
@@ -253,16 +313,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        model.connect()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        model.disconnect()
     }
 
     private fun updateViewFromEvent(view: View, event: HeatPumpViewModel.HeatPumpEvent) {

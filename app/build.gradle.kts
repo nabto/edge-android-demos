@@ -68,6 +68,7 @@ dependencies {
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.3")
     implementation("androidx.annotation:annotation:1.2.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1")
+    implementation("androidx.lifecycle:lifecycle-process:2.5.1")
 
     // Koin dependency injection
     val koin_version = "3.2.0"
