@@ -23,10 +23,6 @@ interface NabtoRepository {
     fun getApplicationScope(): CoroutineScope
 }
 
-interface NabtoConnectionService {
-    fun createConnection(): Connection
-}
-
 data class MdnsDeviceInfo(
     val productId: String,
     val deviceId: String
@@ -352,14 +348,6 @@ private fun appModule(client: NabtoClient, scanner: NabtoDeviceScanner, scope: C
         }
 
         single<NabtoRepository> { NabtoRepositoryImpl(androidApplication(), scope, scanner) }
-
-        single<NabtoConnectionService> {
-            object : NabtoConnectionService {
-                override fun createConnection(): Connection {
-                    return client.createConnection()
-                }
-            }
-        }
 
         single<NabtoConnectionManager> {
             NabtoConnectionManagerImpl(androidApplication(), get(), client)

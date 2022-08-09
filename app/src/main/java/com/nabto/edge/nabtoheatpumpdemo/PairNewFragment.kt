@@ -63,7 +63,6 @@ class PairNewFragment : Fragment() {
     private val TAG = "PairNewFragment"
     private val database: DeviceDatabase by inject()
     private val repo: NabtoRepository by inject()
-    private val service: NabtoConnectionService by inject()
     private val deviceListAdapter = PairNewDeviceListAdapter()
 
     override fun onCreateView(
