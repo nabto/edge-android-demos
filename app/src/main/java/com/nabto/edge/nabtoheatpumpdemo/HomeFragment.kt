@@ -6,11 +6,8 @@ import androidx.core.os.bundleOf
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.Lifecycle
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -18,6 +15,12 @@ import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
+
+class HomeViewModelFactory(private val database: DeviceDatabase): ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return modelClass.getConstructor(DeviceDatabase::class.java).newInstance(database)
+    }
+}
 
 class HomeViewModel(private val database: DeviceDatabase) : ViewModel() {
     private val _deviceList = MutableLiveData<List<Device>>()
@@ -35,7 +38,9 @@ class HomeViewModel(private val database: DeviceDatabase) : ViewModel() {
 
 class HomeFragment : Fragment(), MenuProvider {
     private val database: DeviceDatabase by inject()
-    private val model: HomeViewModel by viewModel { parametersOf(database) }
+    private val model: HomeViewModel by viewModels {
+        HomeViewModelFactory(database)
+    }
     private val deviceListAdapter = DeviceListAdapter()
 
     override fun onCreateView(

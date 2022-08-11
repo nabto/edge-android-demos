@@ -11,9 +11,12 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
 import com.nabto.edge.client.Coap
+import com.nabto.edge.client.ErrorCode
+import com.nabto.edge.client.ErrorCodes
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.ktx.awaitExecute
 import kotlinx.coroutines.*
@@ -26,11 +29,6 @@ import org.koin.android.ext.android.inject
 //        Currently we always navigate to DevicePageFragment which is just a heatpump fragment
 //
 // @TODO: Closing the app before the connection manages to close will not shut down the connection
-//
-// @TODO: Going to the device settings page has the DevicePageFragment enter a paused lifecycle staet
-//        this means that the connection is eventually dropped if one doesnt return to the DevicePageFragment
-//        This happens because of onStop/onResume being used for when the app enters background
-//        Maybe we can detect going into the background in a different way?
 
 enum class HeatPumpMode(val string: String) {
     COOL("COOL"),
@@ -68,37 +66,50 @@ internal fun decodeHeatPumpStateFromCBOR(cbor: ByteArray): HeatPumpState {
 }
 
 class HeatPumpViewModelFactory(
-    private val repo: NabtoRepository,
     private val device: Device,
     private val connectionManager: NabtoConnectionManager,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return modelClass.getConstructor(
-            NabtoRepository::class.java,
             Device::class.java,
             NabtoConnectionManager::class.java
-        ).newInstance(repo, device, connectionManager)
+        ).newInstance(device, connectionManager)
     }
 }
 
+enum class HeatPumpConnectionState {
+    INITIAL_CONNECTING,
+    CONNECTED,
+    DISCONNECTED
+}
+
+enum class HeatPumpConnectionEvent {
+    RECONNECTED,
+    FAILED_RECONNECT,
+    FAILED_INITIAL_CONNECT
+}
+
 class HeatPumpViewModel(
-    private val repo: NabtoRepository,
     device: Device,
     private val connectionManager: NabtoConnectionManager
 ) : ViewModel() {
-    sealed class HeatPumpEvent {
-        class Update(val state: HeatPumpState) : HeatPumpEvent()
-        object LostConnection : HeatPumpEvent()
-        object FailedToConnect : HeatPumpEvent()
-    }
-
-    private val heatPumpEvent: MutableLiveData<HeatPumpEvent> = MutableLiveData()
-
     private val TAG = this.javaClass.simpleName
-    private var isConnected = false
+
+    private val _heatPumpState: MutableLiveData<HeatPumpState> = MutableLiveData()
+    val state: LiveData<HeatPumpState>
+        get() = _heatPumpState
+
+    private val _heatPumpConnState: MutableLiveData<HeatPumpConnectionState> = MutableLiveData(HeatPumpConnectionState.INITIAL_CONNECTING)
+    val connectionState: LiveData<HeatPumpConnectionState>
+        get() = _heatPumpConnState.distinctUntilChanged()
+
+    private val _heatPumpConnEvent: MutableLiveEvent<HeatPumpConnectionEvent> = MutableLiveEvent()
+    val connectionEvent: LiveEvent<HeatPumpConnectionEvent>
+        get() = _heatPumpConnEvent
+
     private var isPaused = false
-    private lateinit var updateLoopJob: Job
-    private val handle = connectionManager.requestConnection(device, { onConnectionChanged(it) })
+    private var updateLoopJob: Job? = null
+    private val handle = connectionManager.requestConnection(device) { onConnectionChanged(it) }
 
     // How many times per second should we request a state update from the device?
     private val updatesPerSecond = 10.0
@@ -106,41 +117,55 @@ class HeatPumpViewModel(
     private fun onConnectionChanged(state: NabtoConnectionEvent) {
         Log.i(TAG, "Device connection state changed to: $state")
         when (state) {
-            NabtoConnectionEvent.CONNECTED -> onConnected()
-            NabtoConnectionEvent.DEVICE_DISCONNECTED -> onDeviceDisconnected()
-            NabtoConnectionEvent.FAILED_TO_CONNECT -> heatPumpEvent.postValue(HeatPumpEvent.FailedToConnect)
-            NabtoConnectionEvent.CLOSED -> onConnectionClosed()
-            NabtoConnectionEvent.PAUSED -> { isPaused = true }
-            NabtoConnectionEvent.UNPAUSED -> { isPaused = false }
+            NabtoConnectionEvent.CONNECTED -> {
+                isPaused = false
+                updateLoopJob = viewModelScope.launch {
+                    updateLoop()
+                }
+                if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
+                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
+                }
+                _heatPumpConnState.postValue(HeatPumpConnectionState.CONNECTED)
+            }
+
+            NabtoConnectionEvent.DEVICE_DISCONNECTED -> {
+                updateLoopJob?.cancel()
+                updateLoopJob = null
+                _heatPumpConnState.postValue(HeatPumpConnectionState.DISCONNECTED)
+            }
+
+            NabtoConnectionEvent.FAILED_TO_CONNECT -> {
+                if (_heatPumpConnState.value == HeatPumpConnectionState.INITIAL_CONNECTING) {
+                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_INITIAL_CONNECT)
+                } else {
+                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_RECONNECT)
+                }
+            }
+
+            NabtoConnectionEvent.CLOSED -> {
+                updateLoopJob?.cancel()
+                updateLoopJob = null
+            }
+
+            NabtoConnectionEvent.PAUSED -> {
+                isPaused = true
+            }
+
+            NabtoConnectionEvent.UNPAUSED -> {
+                isPaused = false
+            }
             else -> {}
-        }
-    }
-
-    private fun onConnected() {
-        isConnected = true
-        isPaused = false
-        updateLoopJob = viewModelScope.launch {
-            updateLoop()
-        }
-    }
-
-    private fun onConnectionClosed() {
-        isConnected = false
-        updateLoopJob.cancel()
-    }
-
-    private fun onDeviceDisconnected() {
-        isConnected = false
-        updateLoopJob.cancel()
-        viewModelScope.launch {
-            heatPumpEvent.postValue(HeatPumpEvent.LostConnection)
         }
     }
 
     private suspend fun updateLoop() {
         withContext(Dispatchers.IO) {
-            while (isConnected) {
-                if (isPaused) continue
+            while (true) {
+                if (isPaused) {
+                    // the device is still connected but we need to stop querying it
+                    delay(500)
+                    continue
+                }
                 updateHeatPumpState()
                 val delayTime = (1.0 / updatesPerSecond * 1000.0).toLong()
                 delay(delayTime)
@@ -148,21 +173,26 @@ class HeatPumpViewModel(
         }
     }
 
-    fun getHeatPumpEventQueue(): LiveData<HeatPumpEvent> {
-        return heatPumpEvent
+    fun tryReconnect() {
+        if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
+            connectionManager.reconnect(handle)
+        } else {
+            _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
+        }
     }
 
     private suspend fun <T> safeCall(errorVal: T, code: suspend () -> T): T {
         return try {
             code()
         } catch (e: NabtoRuntimeException) {
-            // @TODO: Log errors here
+            errorVal
+        } catch (e: CancellationException) {
+            Log.i(TAG, "safeCall was cancelled")
             errorVal
         }
     }
 
     fun setPower(toggled: Boolean) {
-        if (!isConnected) return
         viewModelScope.launch {
             safeCall({}) {
                 val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/power")
@@ -179,7 +209,6 @@ class HeatPumpViewModel(
     }
 
     fun setMode(mode: HeatPumpMode) {
-        if (!isConnected) return
         viewModelScope.launch {
             safeCall({}) {
                 val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/mode")
@@ -196,7 +225,6 @@ class HeatPumpViewModel(
     }
 
     fun setTarget(target: Double) {
-        if (!isConnected) return
         viewModelScope.launch {
             safeCall({}) {
                 val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/target")
@@ -213,6 +241,7 @@ class HeatPumpViewModel(
     }
 
     private suspend fun updateHeatPumpState() {
+        // @TODO: We probably dont need invalidState
         val invalidState = HeatPumpState(HeatPumpMode.UNKNOWN, false, 0.0, 0.0, false)
         val state = safeCall(invalidState) {
             val coap = connectionManager.createCoap(handle, "GET", "/heat-pump")
@@ -227,9 +256,7 @@ class HeatPumpViewModel(
             return@safeCall decodeHeatPumpStateFromCBOR(data)
         }
         if (state.valid) {
-            heatPumpEvent.postValue(HeatPumpEvent.Update(state))
-        } else {
-            heatPumpEvent.postValue(HeatPumpEvent.LostConnection)
+            _heatPumpState.postValue(state)
         }
     }
 
@@ -241,16 +268,20 @@ class HeatPumpViewModel(
 
 class DevicePageFragment : Fragment(), MenuProvider {
     private val model: HeatPumpViewModel by navGraphViewModels(R.id.device_graph) {
-        val repo: NabtoRepository by inject()
         val connectionManager: NabtoConnectionManager by inject()
         HeatPumpViewModelFactory(
-            repo,
             requireArguments().get("device") as Device,
             connectionManager
         )
     }
 
-    private var hasLoaded = false
+    private val TAG = this.javaClass.simpleName
+
+    private lateinit var mainLayout: View
+    private lateinit var lostConnectionBar: View
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
+    private lateinit var loadingSpinner: View
+
     private lateinit var device: Device
     private lateinit var temperatureView: TextView
     private lateinit var modeSpinnerView: Spinner
@@ -272,13 +303,24 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        hasLoaded = false
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
+        mainLayout = view.findViewById(R.id.dp_main)
+        swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
+        lostConnectionBar = view.findViewById(R.id.dp_lost_connection_bar)
+        loadingSpinner =  view.findViewById(R.id.dp_loading)
         temperatureView = view.findViewById(R.id.dp_temperature)
         modeSpinnerView = view.findViewById(R.id.dp_mode_spinner)
         powerSwitchView = view.findViewById(R.id.dp_power_switch)
         targetSliderView = view.findViewById(R.id.dp_target_slider)
+
+        model.state.observe(viewLifecycleOwner, Observer { state -> onStateChanged(view, state) })
+        model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
+        model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
+
+        swipeRefreshLayout.setOnRefreshListener {
+            model.tryReconnect()
+        }
 
         view.findViewById<TextView>(R.id.dp_info_name).text =
             device.getDeviceNameOrElse(getString(R.string.unnamed_device))
@@ -293,9 +335,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             modeSpinnerView.adapter = adapter
         }
-
-        model.getHeatPumpEventQueue()
-            .observe(viewLifecycleOwner, Observer { event -> updateViewFromEvent(view, event) })
 
         powerSwitchView.setOnClickListener {
             model.setPower(powerSwitchView.isChecked)
@@ -315,43 +354,73 @@ class DevicePageFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun updateViewFromEvent(view: View, event: HeatPumpViewModel.HeatPumpEvent) {
-        if (event is HeatPumpViewModel.HeatPumpEvent.FailedToConnect) {
-            val snackbar = Snackbar.make(
-                view,
-                "Failed to connect to device",
-                Snackbar.LENGTH_LONG
-            )
-            snackbar.show()
-            findNavController().popBackStack()
-            return
+    private fun onStateChanged(view: View, state: HeatPumpState) {
+        powerSwitchView.isChecked = state.power
+        targetSliderView.value = state.target.toFloat()
+        modeSpinnerView.setSelection(state.mode.ordinal)
+        temperatureView.text = getString(R.string.temperature_format).format(state.temperature)
+    }
+
+    private fun onConnectionStateChanged(view: View, state: HeatPumpConnectionState) {
+        Log.i(TAG, "View state changed to $state")
+
+        fun setViewsEnabled(enable: Boolean) {
+            powerSwitchView.isEnabled = enable
+            targetSliderView.isEnabled = enable
+            modeSpinnerView.isEnabled = enable
+            temperatureView.isEnabled = enable
         }
 
-        if (event is HeatPumpViewModel.HeatPumpEvent.LostConnection) {
-            val snackbar = Snackbar.make(
-                view,
-                "Lost connection to device",
-                Snackbar.LENGTH_LONG
-            )
-            snackbar.show()
-            findNavController().popBackStack()
-            return
-        }
-
-        if (event is HeatPumpViewModel.HeatPumpEvent.Update) {
-            if (!hasLoaded) {
-                hasLoaded = true
-                powerSwitchView.isChecked = event.state.power
-                targetSliderView.value = event.state.target.toFloat()
-                modeSpinnerView.setSelection(event.state.mode.ordinal)
-
-                // Destroy the loading spinner and show device page to user
-                view.findViewById<View>(R.id.dp_loading).visibility = View.GONE
-                view.findViewById<View>(R.id.dp_main).visibility = View.VISIBLE
+        when (state) {
+            HeatPumpConnectionState.INITIAL_CONNECTING -> {
+                swipeRefreshLayout.visibility = View.INVISIBLE
+                loadingSpinner.visibility = View.VISIBLE
+                setViewsEnabled(false)
             }
 
-            temperatureView.text =
-                getString(R.string.temperature_format).format(event.state.temperature)
+            HeatPumpConnectionState.CONNECTED -> {
+                loadingSpinner.visibility = View.INVISIBLE
+                lostConnectionBar.visibility = View.GONE
+                swipeRefreshLayout.visibility = View.VISIBLE
+                setViewsEnabled(true)
+
+                lostConnectionBar.animate()
+                    .translationY(-lostConnectionBar.height.toFloat())
+                mainLayout.animate()
+                    .translationY(0f)
+            }
+
+            HeatPumpConnectionState.DISCONNECTED -> {
+                lostConnectionBar.visibility = View.VISIBLE
+                lostConnectionBar.animate()
+                    .translationY(0f)
+                mainLayout.animate()
+                    .translationY(lostConnectionBar.height.toFloat())
+                setViewsEnabled(false)
+            }
+        }
+    }
+
+    private fun onConnectionEvent(view: View, event: HeatPumpConnectionEvent) {
+        Log.i(TAG, "Got event: $event")
+        when (event) {
+            HeatPumpConnectionEvent.RECONNECTED -> {
+                swipeRefreshLayout.isRefreshing = false
+            }
+
+            HeatPumpConnectionEvent.FAILED_RECONNECT -> {
+                swipeRefreshLayout.isRefreshing = false
+            }
+
+            HeatPumpConnectionEvent.FAILED_INITIAL_CONNECT -> {
+                val snackbar = Snackbar.make(
+                    view,
+                    "Failed to connect to device",
+                    Snackbar.LENGTH_LONG
+                )
+                snackbar.show()
+                findNavController().popBackStack()
+            }
         }
     }
 
