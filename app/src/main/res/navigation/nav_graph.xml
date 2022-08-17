@@ -50,19 +50,11 @@
     <navigation android:id="@+id/device_graph"
         app:startDestination="@id/devicePageFragment">
         <fragment
-            android:id="@+id/deviceSettingsFragment"
-            android:name="com.nabto.edge.nabtoheatpumpdemo.DeviceSettingsFragment"
-            android:label="fragment_device_settings"
-            tools:layout="@layout/fragment_device_settings" />
-        <fragment
             android:id="@+id/devicePageFragment"
             android:name="com.nabto.edge.nabtoheatpumpdemo.DevicePageFragment"
             android:label="{title}"
             tools:layout="@layout/fragment_device_page">
             <argument android:name="title" />
-            <action
-                android:id="@+id/action_devicePageFragment_to_deviceSettingsFragment"
-                app:destination="@id/deviceSettingsFragment" />
         </fragment>
     </navigation>
 </navigation>
