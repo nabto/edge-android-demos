@@ -36,16 +36,41 @@
             tools:layout_editor_absoluteY="56dp" />
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="200dp"
+    <FrameLayout
+        android:layout_width="300dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:background="@color/white"
-        android:orientation="vertical">
+        android:background="?attr/colorPrimary">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:text="Unfinished side menu " />
-    </LinearLayout>
+            android:layout_marginTop="5dp"
+            android:layout_marginBottom="5dp"
+            android:layout_marginEnd="5dp"
+            android:padding="10dp"
+            android:background="@drawable/half_rounded"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="100dp"
+                android:text="@string/app_name"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="?attr/colorPrimaryVariant"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:text="Reset App"/>
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="?attr/colorPrimaryVariant"/>
+
+        </LinearLayout>
+    </FrameLayout>
 </androidx.drawerlayout.widget.DrawerLayout>
