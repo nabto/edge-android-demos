@@ -15,6 +15,7 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.snackbar.Snackbar
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.iamutil.DeviceDetails
+import com.nabto.edge.iamutil.IamError
 import com.nabto.edge.iamutil.IamException
 import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.*
@@ -57,8 +58,9 @@ private class PairDeviceViewModelFactory(
 }
 
 private sealed class PairingResult {
-    class Success(val alreadyPaired: Boolean, val dev: Device) : PairingResult()
+    data class Success(val alreadyPaired: Boolean, val dev: Device) : PairingResult()
     object FailedNotHeatPump : PairingResult()
+    object FailedUsernameExists : PairingResult()
     object Failed : PairingResult()
 }
 
@@ -140,7 +142,11 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
             } catch (e: IamException) {
                 // You could carry some extra information in PairingResult.Failed using the info in the exception
                 // to give a better update to the end user
-                _pairingResult.postValue(PairingResult.Failed)
+                if (e.error == IamError.USERNAME_EXISTS) {
+                    _pairingResult.postValue(PairingResult.FailedUsernameExists)
+                } else {
+                    _pairingResult.postValue(PairingResult.Failed)
+                }
                 Log.i(TAG, "Attempted pairing failed with $e")
             } catch (e: NabtoRuntimeException) {
                 _pairingResult.postValue(PairingResult.Failed)
@@ -173,7 +179,9 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
 
     override fun onCleared() {
         super.onCleared()
-        manager.releaseHandle(handle)
+        if (this::handle.isInitialized) {
+            manager.releaseHandle(handle)
+        }
     }
 }
 
@@ -198,35 +206,32 @@ class PairDeviceFragment : Fragment() {
         model.pairingData = PairingData.unwrapBundle(arguments)
 
         model.pairingResult.observe(viewLifecycleOwner, Observer { result ->
-            when (result) {
+            val stringIdentifier = when (result) {
                 is PairingResult.Success -> {
                     // Success, update the local database of devices
                     lifecycleScope.launch(Dispatchers.IO) {
                         val dao = database.deviceDao()
                         dao.insertOrUpdate(result.dev)
                     }
-                    val text =
-                        if (result.alreadyPaired) getString(R.string.pair_device_already_paired) else getString(
-                            R.string.pair_device_success
-                        )
-                    Snackbar.make(view, text, Snackbar.LENGTH_LONG).show()
+                    if (result.alreadyPaired) {
+                        R.string.pair_device_already_paired
+                    } else {
+                        R.string.pair_device_success
+                    }
                 }
-                is PairingResult.FailedNotHeatPump -> {
-                    Snackbar.make(
-                        view,
-                        getString(R.string.pair_device_failed_not_heatpump),
-                        Snackbar.LENGTH_LONG
-                    ).show()
-                }
-                is PairingResult.Failed -> {
-                    Snackbar.make(
-                        view,
-                        getString(R.string.pair_device_failed),
-                        Snackbar.LENGTH_LONG
-                    ).show()
-                }
+
+                is PairingResult.FailedNotHeatPump -> R.string.pair_device_failed_not_heatpump
+                is PairingResult.FailedUsernameExists -> R.string.pair_device_failed_username_exists
+                is PairingResult.Failed -> R.string.pair_device_failed
             }
 
+            Snackbar.make(
+                view,
+                getString(stringIdentifier),
+                Snackbar.LENGTH_LONG
+            ).show()
+
+            // @TODO: Only send the user back if they successfully paired.
             findNavController().navigate(R.id.action_nav_return_home)
         })
 

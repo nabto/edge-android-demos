@@ -3,7 +3,7 @@
     <string name="title_home">Home</string>
     <string name="title_pair_new">Pair new device</string>
     <string name="unnamed_device">Unnamed Device</string>
-    <string name="temperature_format">%.1f°</string>
+    <string name="temperature_format">%.1f°C</string>
     <string-array name="modes_array">
         <item>Cool</item>
         <item>Heat</item>
@@ -12,9 +12,14 @@
     </string-array>
     <string name="home_empty_card">You have not yet paired with any devices. Pair with a new device to get started.</string>
     <string name="home_empty_button">Pair new</string>
-    <string name="pair_device_already_paired">Device is already paired with.</string>
+    <string name="pair_device_already_paired">Device has already been paired with.</string>
     <string name="pair_device_success">Successfully paired with device!</string>
     <string name="pair_device_failed_not_heatpump">Failed to pair with device, it\'s not a heat pump!</string>
     <string name="pair_device_failed">Failed to pair with device.</string>
-
+    <string name="username">Username</string>
+    <string name="friendly_device_name">Friendly Device Name</string>
+    <string name="pair_device_button">pair with device</string>
+    <string name="pair_device_form_info">Fill in a username and a friendly name that the device will be remembered by.\n\nUsername should only contain plain lowercase letters.</string>
+    <string name="pair_device_failed_username_exists">Failed to pair, username already taken!</string>
+    <string name="device_page_failed_to_connect">Failed to connect to device</string>
 </resources>

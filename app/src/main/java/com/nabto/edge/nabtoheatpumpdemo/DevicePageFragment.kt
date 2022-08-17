@@ -452,7 +452,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
             HeatPumpConnectionEvent.FAILED_INITIAL_CONNECT -> {
                 val snackbar = Snackbar.make(
                     view,
-                    "Failed to connect to device",
+                    getString(R.string.device_page_failed_to_connect),
                     Snackbar.LENGTH_LONG
                 )
                 snackbar.show()
