@@ -14,6 +14,7 @@ import androidx.navigation.navGraphViewModels
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.nabto.edge.client.Coap
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.ktx.awaitExecute
@@ -298,7 +299,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
     private lateinit var device: Device
     private lateinit var temperatureView: TextView
     private lateinit var modeSpinnerView: Spinner
-    private lateinit var powerSwitchView: Switch
+    private lateinit var powerSwitchView: SwitchMaterial
     private lateinit var targetSliderView: Slider
 
     override fun onCreate(savedInstanceState: Bundle?) {

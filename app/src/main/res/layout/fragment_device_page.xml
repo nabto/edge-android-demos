@@ -48,11 +48,12 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="center"
-                        android:text="LOST CONNECTION TO DEVICE"
+                        android:text="@string/device_page_lost_connection"
                         android:textColor="@color/white"
                         android:textSize="20sp"
                         android:textStyle="bold"
-                        android:paddingStart="12dp"/>
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"/>
                 </LinearLayout>
 
                 <LinearLayout
@@ -80,7 +81,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Heat pump settings"
+                            android:text="@string/device_page_heat_pump_settings"
                             android:textColor="?attr/colorPrimaryVariant"
                             android:textSize="16sp" />
 
@@ -129,9 +130,9 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:layout_weight="1"
-                                android:text="Heat pump active" />
+                                android:text="@string/device_page_power_switch_label" />
 
-                            <Switch
+                            <com.google.android.material.switchmaterial.SwitchMaterial
                                 android:id="@+id/dp_power_switch"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
@@ -153,7 +154,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:layout_weight="1"
-                                android:text="Mode" />
+                                android:text="@string/mode" />
 
                             <Spinner
                                 android:id="@+id/dp_mode_spinner"
@@ -175,7 +176,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Device information"
+                            android:text="@string/device_page_device_information"
                             android:textColor="?attr/colorPrimaryVariant"
                             android:textSize="16sp" />
 
@@ -192,7 +193,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:layout_weight="1"
-                                android:text="Name" />
+                                android:text="@string/name" />
 
                             <TextView
                                 android:id="@+id/dp_info_name"
@@ -216,7 +217,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:layout_weight="1"
-                                android:text="App Name" />
+                                android:text="@string/device_page_app_name" />
 
                             <TextView
                                 android:id="@+id/dp_info_appname"
@@ -240,7 +241,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:layout_weight="1"
-                                android:text="Device ID" />
+                                android:text="@string/device_id" />
 
                             <TextView
                                 android:id="@+id/dp_info_devid"
@@ -264,7 +265,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:layout_weight="1"
-                                android:text="Product ID" />
+                                android:text="@string/product_id" />
 
                             <TextView
                                 android:id="@+id/dp_info_proid"
@@ -288,7 +289,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:layout_weight="1"
-                                android:text="User ID" />
+                                android:text="@string/user_id" />
 
                             <TextView
                                 android:id="@+id/dp_info_userid"

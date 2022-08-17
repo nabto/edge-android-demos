@@ -100,11 +100,6 @@ class HomeViewModel(private val database: DeviceDatabase, private val manager: N
         }
         connections.clear()
     }
-
-    override fun onCleared() {
-        super.onCleared()
-        Log.i("HOME", "onclear")
-    }
 }
 
 class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {

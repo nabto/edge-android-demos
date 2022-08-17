@@ -87,12 +87,13 @@ class PairNewFragment : Fragment() {
 
     fun onDeviceClick(mdnsDevice: MdnsDeviceInfo) {
         lifecycleScope.launch {
+            // @TODO: This alreadyPaired business doesn't seem to work...?
             val alreadyPaired = withContext(Dispatchers.IO) {
                 val dao = database.deviceDao()
                 dao.exists(mdnsDevice.productId, mdnsDevice.deviceId)
             }
             if (alreadyPaired) {
-                Snackbar.make(requireView(), "Already paired with device", Snackbar.LENGTH_LONG).show()
+                Snackbar.make(requireView(), getString(R.string.pair_device_already_paired), Snackbar.LENGTH_LONG).show()
             } else {
                 val bundle = PairingData.makeBundle(mdnsDevice.productId, mdnsDevice.deviceId, "")
                 findNavController().navigate(R.id.action_pairNewFragment_to_pairDeviceFragment, bundle)

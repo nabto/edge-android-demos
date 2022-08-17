@@ -22,4 +22,15 @@
     <string name="pair_device_form_info">Fill in a username and a friendly name that the device will be remembered by.\n\nUsername should only contain plain lowercase letters.</string>
     <string name="pair_device_failed_username_exists">Failed to pair, username already taken!</string>
     <string name="device_page_failed_to_connect">Failed to connect to device</string>
+    <string name="device_page_lost_connection">LOST CONNECTION TO DEVICE</string>
+    <string name="device_page_heat_pump_settings">Heat pump settings</string>
+    <string name="device_page_power_switch_label">Heat pump active</string>
+    <string name="mode">Mode</string>
+    <string name="device_page_device_information">Device information</string>
+    <string name="name">Name</string>
+    <string name="device_page_app_name">App Name</string>
+    <string name="device_id">Device ID</string>
+    <string name="product_id">Product ID</string>
+    <string name="user_id">User ID</string>
+    <string name="refresh">Refresh</string>
 </resources>

@@ -1,17 +1,8 @@
 package com.nabto.edge.nabtoheatpumpdemo
 
 import android.os.Parcelable
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
-import androidx.fragment.app.findFragment
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.coroutineScope
-import androidx.recyclerview.widget.RecyclerView
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 
 @Entity(tableName = "devices", primaryKeys = ["productId", "deviceId"])

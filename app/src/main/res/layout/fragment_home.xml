@@ -55,7 +55,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 app:icon="@drawable/ic_baseline_refresh_24"
-                android:text="refresh"
+                android:text="@string/refresh"
                 style="?android:attr/buttonBarButtonStyle" />
 
             <Button

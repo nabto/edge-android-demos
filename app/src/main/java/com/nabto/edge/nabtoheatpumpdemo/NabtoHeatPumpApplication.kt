@@ -311,7 +311,6 @@ class NabtoConnectionManagerImpl(
 
     override fun releaseHandle(handle: ConnectionHandle) {
         connectionMap.remove(handle)?.let { data ->
-            val savedState = data.state
             if (data.state.value != NabtoConnectionState.CLOSED) {
                 publish(data, NabtoConnectionEvent.CLOSED)
                 repo.getApplicationScope().launch(Dispatchers.IO) {
