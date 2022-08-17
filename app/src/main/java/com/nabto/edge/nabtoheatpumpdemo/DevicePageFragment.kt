@@ -2,7 +2,6 @@
 
 package com.nabto.edge.nabtoheatpumpdemo
 
-import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -315,7 +314,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
         return inflater.inflate(R.layout.fragment_device_page, container, false)
     }
 
-    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
