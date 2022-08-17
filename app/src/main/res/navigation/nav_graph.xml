@@ -45,7 +45,7 @@
             app:argType="string" />
         <deepLink
             app:action="ACTION_VIEW"
-            app:uri="nabto://androiddemo/pairing/{productId}/{deviceId}/{password}" />
+            app:uri="https://nabto.com/pairing_demo/{productId}/{deviceId}/{password}" />
     </fragment>
     <navigation android:id="@+id/device_graph"
         app:startDestination="@id/devicePageFragment">

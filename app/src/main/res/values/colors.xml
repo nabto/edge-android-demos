@@ -18,6 +18,7 @@
     <color name="grey_300">#e0e0e0</color>
     <color name="grey_700">#616161</color>
 
+    <color name="green">#22ff22</color>
     <color name="yellow">#eeff22</color>
     <color name="red">#ff2222</color>
 </resources>

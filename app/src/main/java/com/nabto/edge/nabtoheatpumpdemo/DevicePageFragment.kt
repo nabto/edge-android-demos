@@ -2,6 +2,7 @@
 
 package com.nabto.edge.nabtoheatpumpdemo
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -15,10 +16,11 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
 import com.nabto.edge.client.Coap
-import com.nabto.edge.client.ErrorCode
-import com.nabto.edge.client.ErrorCodes
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.ktx.awaitExecute
+import com.nabto.edge.iamutil.IamUser
+import com.nabto.edge.iamutil.IamUtil
+import com.nabto.edge.iamutil.ktx.awaitGetCurrentUser
 import kotlinx.coroutines.*
 import kotlinx.serialization.*
 import kotlinx.serialization.cbor.Cbor
@@ -107,6 +109,10 @@ class HeatPumpViewModel(
     val connectionEvent: LiveEvent<HeatPumpConnectionEvent>
         get() = _heatPumpConnEvent
 
+    private val _currentUser: MutableLiveData<IamUser> = MutableLiveData()
+    val currentUser: LiveData<IamUser>
+        get() = _currentUser
+
     private var isPaused = false
     private var updateLoopJob: Job? = null
     private val handle = connectionManager.requestConnection(device) { onConnectionChanged(it) }
@@ -126,6 +132,12 @@ class HeatPumpViewModel(
                     _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
                 }
                 _heatPumpConnState.postValue(HeatPumpConnectionState.CONNECTED)
+
+                viewModelScope.launch {
+                    val iam = IamUtil.create()
+                    val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
+                    _currentUser.postValue(user)
+                }
             }
 
             NabtoConnectionEvent.DEVICE_DISCONNECTED -> {
@@ -277,6 +289,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
     private val TAG = this.javaClass.simpleName
 
+    private var isTouching = false
+
     private lateinit var mainLayout: View
     private lateinit var lostConnectionBar: View
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
@@ -301,6 +315,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
         return inflater.inflate(R.layout.fragment_device_page, container, false)
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
@@ -319,13 +334,18 @@ class DevicePageFragment : Fragment(), MenuProvider {
         model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
 
         swipeRefreshLayout.setOnRefreshListener {
-            model.tryReconnect()
+            refresh()
         }
 
         view.findViewById<TextView>(R.id.dp_info_name).text =
             device.getDeviceNameOrElse(getString(R.string.unnamed_device))
+        view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
         view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
         view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
+
+        model.currentUser.observe(viewLifecycleOwner, Observer {
+            view.findViewById<TextView>(R.id.dp_info_userid).text = it.username
+        })
 
         ArrayAdapter.createFromResource(
             requireContext(),
@@ -352,13 +372,32 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
+
+        val touchListener = View.OnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                isTouching = true
+            } else if (event.action == MotionEvent.ACTION_UP) {
+                isTouching = false
+            }
+            false
+        }
+
+        // @TODO: Override performClick for accessibility?
+        powerSwitchView.setOnTouchListener(touchListener)
+        targetSliderView.setOnTouchListener(touchListener)
+    }
+
+    fun refresh() {
+        model.tryReconnect()
     }
 
     private fun onStateChanged(view: View, state: HeatPumpState) {
+        temperatureView.text = getString(R.string.temperature_format).format(state.temperature)
+
+        if (isTouching) return
         powerSwitchView.isChecked = state.power
         targetSliderView.value = state.target.toFloat()
         modeSpinnerView.setSelection(state.mode.ordinal)
-        temperatureView.text = getString(R.string.temperature_format).format(state.temperature)
     }
 
     private fun onConnectionStateChanged(view: View, state: HeatPumpConnectionState) {
@@ -429,8 +468,9 @@ class DevicePageFragment : Fragment(), MenuProvider {
     }
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-        if (menuItem.itemId == R.id.action_device_settings) {
-            findNavController().navigate(R.id.action_devicePageFragment_to_deviceSettingsFragment)
+        if (menuItem.itemId == R.id.action_device_refresh) {
+            swipeRefreshLayout.isRefreshing = true
+            refresh()
             return true
         }
         return false
