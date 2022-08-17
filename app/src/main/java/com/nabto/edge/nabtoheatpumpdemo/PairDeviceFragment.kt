@@ -2,16 +2,20 @@ package com.nabto.edge.nabtoheatpumpdemo
 
 import android.os.Bundle
 import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import androidx.core.os.bundleOf
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
+import com.google.android.material.snackbar.Snackbar
+import com.nabto.edge.client.NabtoRuntimeException
+import com.nabto.edge.iamutil.DeviceDetails
+import com.nabto.edge.iamutil.IamException
 import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.*
 import kotlinx.coroutines.CancellationException
@@ -35,7 +39,6 @@ data class PairingData(
         }
 
         fun makeBundle(productId: String, deviceId: String, password: String): Bundle {
-            //return bundleOf("pairing_data" to PairingData(productId, deviceId, password))
             return bundleOf(
                 "productId" to productId,
                 "deviceId" to deviceId,
@@ -46,23 +49,20 @@ data class PairingData(
 }
 
 private class PairDeviceViewModelFactory(
-    private val repo: NabtoRepository,
     private val manager: NabtoConnectionManager
-): ViewModelProvider.Factory {
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return modelClass.getConstructor(NabtoRepository::class.java, NabtoConnectionManager::class.java).newInstance(repo, manager)
+        return modelClass.getConstructor(NabtoConnectionManager::class.java).newInstance(manager)
     }
 }
 
-private data class PairingResult(
-    val wasAlreadyPaired: Boolean,
-    val device: Device = Device("", "", "", "", "")
-)
+private sealed class PairingResult {
+    class Success(val alreadyPaired: Boolean, val dev: Device) : PairingResult()
+    object FailedNotHeatPump : PairingResult()
+    object Failed : PairingResult()
+}
 
-private class PairDeviceViewModel(
-    private val repo: NabtoRepository,
-    private val manager: NabtoConnectionManager
-) : ViewModel() {
+private class PairDeviceViewModel(private val manager: NabtoConnectionManager) : ViewModel() {
     private val TAG = "PairDeviceViewModel"
     var pairingData = PairingData("", "", "")
     private var password = ""
@@ -84,6 +84,11 @@ private class PairDeviceViewModel(
 
     private suspend fun isCurrentUserPaired(): Boolean {
         return iam.awaitIsCurrentUserPaired(manager.getConnection(handle))
+    }
+
+    private suspend fun getPairingDetails(): DeviceDetails {
+        val connection = manager.getConnection(handle)
+        return iam.awaitGetDeviceDetails(connection)
     }
 
     private suspend fun getDeviceDetails(friendlyDeviceName: String): Device {
@@ -112,9 +117,15 @@ private class PairDeviceViewModel(
     private fun pairAndUpdateDevice(username: String, friendlyName: String) {
         viewModelScope.launch {
             try {
+                val pairingDetails = getPairingDetails()
+                if (pairingDetails.appName != "HeatPump") {
+                    _pairingResult.postValue(PairingResult.FailedNotHeatPump)
+                    return@launch
+                }
+
                 if (isCurrentUserPaired()) {
                     val dev = getDeviceDetails(friendlyName)
-                    _pairingResult.postValue(PairingResult(true, dev))
+                    _pairingResult.postValue(PairingResult.Success(true, dev))
                     return@launch
                 }
 
@@ -125,9 +136,18 @@ private class PairDeviceViewModel(
                     pairLocalOpen(username, friendlyName)
                 }
 
-                _pairingResult.postValue(PairingResult(false, dev))
+                _pairingResult.postValue(PairingResult.Success(false, dev))
+            } catch (e: IamException) {
+                // You could carry some extra information in PairingResult.Failed using the info in the exception
+                // to give a better update to the end user
+                _pairingResult.postValue(PairingResult.Failed)
+                Log.i(TAG, "Attempted pairing failed with $e")
+            } catch (e: NabtoRuntimeException) {
+                _pairingResult.postValue(PairingResult.Failed)
+                Log.i(TAG, "Attempted pairing failed with $e")
             } catch (e: CancellationException) {
                 manager.releaseHandle(handle)
+                _pairingResult.postValue(PairingResult.Failed)
             }
         }
     }
@@ -140,12 +160,14 @@ private class PairDeviceViewModel(
                 "", "", ""
             )
 
-            handle = manager.requestConnection(device) { when (it) {
-                NabtoConnectionEvent.CONNECTED -> {
-                    viewModelScope.launch { pairAndUpdateDevice(username, friendlyName) }
+            handle = manager.requestConnection(device) {
+                when (it) {
+                    NabtoConnectionEvent.CONNECTED -> {
+                        viewModelScope.launch { pairAndUpdateDevice(username, friendlyName) }
+                    }
+                    else -> {}
                 }
-                else -> {}
-            }}
+            }
         }
     }
 
@@ -159,9 +181,8 @@ class PairDeviceFragment : Fragment() {
     private val TAG = "PairDeviceFragment"
     private val database: DeviceDatabase by inject()
     private val manager: NabtoConnectionManager by inject()
-    private val repo: NabtoRepository by inject()
     private val model: PairDeviceViewModel by viewModels {
-        PairDeviceViewModelFactory(repo, manager)
+        PairDeviceViewModelFactory(manager)
     }
 
     override fun onCreateView(
@@ -174,15 +195,38 @@ class PairDeviceFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         model.pairingData = PairingData.unwrapBundle(arguments)
-        Log.i(TAG, model.pairingData.toString())
 
         model.pairingResult.observe(viewLifecycleOwner, Observer { result ->
-            lifecycleScope.launch(Dispatchers.IO) {
-                val dao = database.deviceDao()
-                dao.insertOrUpdate(result.device)
+            when (result) {
+                is PairingResult.Success -> {
+                    // Success, update the local database of devices
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val dao = database.deviceDao()
+                        dao.insertOrUpdate(result.dev)
+                    }
+                    val text =
+                        if (result.alreadyPaired) getString(R.string.pair_device_already_paired) else getString(
+                            R.string.pair_device_success
+                        )
+                    Snackbar.make(view, text, Snackbar.LENGTH_LONG).show()
+                }
+                is PairingResult.FailedNotHeatPump -> {
+                    Snackbar.make(
+                        view,
+                        getString(R.string.pair_device_failed_not_heatpump),
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                }
+                is PairingResult.Failed -> {
+                    Snackbar.make(
+                        view,
+                        getString(R.string.pair_device_failed),
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                }
             }
+
             findNavController().navigate(R.id.action_nav_return_home)
         })
 

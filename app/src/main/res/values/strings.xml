@@ -10,8 +10,11 @@
         <item>Circulate</item>
         <item>Dehumidify</item>
     </string-array>
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="home_empty_card">You have not yet paired with any devices. Pair with a new device to get started.</string>
     <string name="home_empty_button">Pair new</string>
+    <string name="pair_device_already_paired">Device is already paired with.</string>
+    <string name="pair_device_success">Successfully paired with device!</string>
+    <string name="pair_device_failed_not_heatpump">Failed to pair with device, it\'s not a heat pump!</string>
+    <string name="pair_device_failed">Failed to pair with device.</string>
+
 </resources>
