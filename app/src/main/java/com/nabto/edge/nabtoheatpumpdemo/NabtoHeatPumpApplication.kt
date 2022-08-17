@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.lifecycle.*
 import androidx.room.Room
 import com.nabto.edge.client.*
+import com.nabto.edge.client.impl.MdnsResultScanner
 import com.nabto.edge.client.ktx.awaitConnect
 import kotlinx.coroutines.*
 import org.json.JSONObject
@@ -38,7 +39,7 @@ class NabtoDeviceScanner(nabtoClient: NabtoClient) {
         get() = _devices
 
     init {
-        nabtoClient.addMdnsResultListener { result ->
+        nabtoClient.addMdnsResultListener({ result ->
             when (result?.action) {
                 MdnsResult.Action.ADD,
                 MdnsResult.Action.UPDATE -> {
@@ -51,7 +52,8 @@ class NabtoDeviceScanner(nabtoClient: NabtoClient) {
                 else -> {}
             }
             _devices.postValue(ArrayList(deviceMap.values))
-        }
+        }, "heatpump")
+
     }
 }
 
