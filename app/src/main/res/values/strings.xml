@@ -33,4 +33,5 @@
     <string name="product_id">Product ID</string>
     <string name="user_id">User ID</string>
     <string name="refresh">Refresh</string>
+    <string name="device_page_not_heatpump">Failed to connect, device is not a heat pump.</string>
 </resources>

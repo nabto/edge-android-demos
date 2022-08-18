@@ -32,9 +32,6 @@ import org.koin.android.ext.android.inject
 //
 // @TODO: Closing the app before the connection manages to close will not shut down the connection
 
-// 1. Fragment gets an event from an interactable widget
-// 2. Fragment calculates a delta with timestamp and sends it to the ViewModel
-
 enum class HeatPumpMode(val string: String) {
     COOL("COOL"),
     HEAT("HEAT"),
@@ -91,7 +88,8 @@ enum class HeatPumpConnectionState {
 enum class HeatPumpConnectionEvent {
     RECONNECTED,
     FAILED_RECONNECT,
-    FAILED_INITIAL_CONNECT
+    FAILED_INITIAL_CONNECT,
+    FAILED_NOT_HEAT_PUMP,
 }
 
 class HeatPumpViewModel(
@@ -135,20 +133,26 @@ class HeatPumpViewModel(
                 isPaused = false
 
                 updateLoopJob = viewModelScope.launch {
+                    val iam = IamUtil.create()
+                    val details = iam.getDeviceDetails(connectionManager.getConnection(handle))
+                    if (details.appName != "HeatPump") {
+                        Log.w(TAG, "The app name of the connected device is ${details.appName} instead of HeatPump!")
+                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_NOT_HEAT_PUMP)
+                        return@launch
+                    }
+
                     val heatPumpState = getHeatPumpStateFromDevice()
                     _clientState.postValue(heatPumpState)
-                    updateLoop()
-                }
 
-                if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
-                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
-                }
-                _heatPumpConnState.postValue(HeatPumpConnectionState.CONNECTED)
+                    if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
+                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
+                    }
+                    _heatPumpConnState.postValue(HeatPumpConnectionState.CONNECTED)
 
-                viewModelScope.launch {
-                    val iam = IamUtil.create()
                     val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
                     _currentUser.postValue(user)
+
+                    updateLoop()
                 }
             }
 
@@ -319,24 +323,24 @@ class HeatPumpViewModel(
 }
 
 class DevicePageFragment : Fragment(), MenuProvider {
+    private val TAG = this.javaClass.simpleName
+
     private val model: HeatPumpViewModel by navGraphViewModels(R.id.device_graph) {
         val connectionManager: NabtoConnectionManager by inject()
         HeatPumpViewModelFactory(
-            requireArguments().get("device") as Device,
+            device,
             connectionManager
         )
     }
 
-    private val TAG = this.javaClass.simpleName
-
-    private var isTouching = false
+    // we need this to disable programmatic update of the slider when the user is interacting
+    private var isTouchingTemperatureSlider = false
+    private lateinit var device: Device
 
     private lateinit var mainLayout: View
     private lateinit var lostConnectionBar: View
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var loadingSpinner: View
-
-    private lateinit var device: Device
     private lateinit var temperatureView: TextView
     private lateinit var modeSpinnerView: Spinner
     private lateinit var powerSwitchView: SwitchMaterial
@@ -414,12 +418,12 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
         targetSliderView.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
             override fun onStartTrackingTouch(slider: Slider) {
-                isTouching = true
+                isTouchingTemperatureSlider = true
             }
 
             override fun onStopTrackingTouch(slider: Slider) {
                 model.setTarget(slider.value.toDouble())
-                isTouching = false
+                isTouchingTemperatureSlider = false
             }
 
         })
@@ -430,14 +434,14 @@ class DevicePageFragment : Fragment(), MenuProvider {
     }
 
     private fun onStateChanged(view: View, state: HeatPumpState) {
-        if (isTouching) return
+        if (isTouchingTemperatureSlider) return
         powerSwitchView.isChecked = state.power
         targetSliderView.value = state.target.toFloat()
         modeSpinnerView.setSelection(state.mode.ordinal)
     }
 
     private fun onConnectionStateChanged(view: View, state: HeatPumpConnectionState) {
-        Log.i(TAG, "View state changed to $state")
+        Log.i(TAG, "Connection state changed to $state")
 
         fun setViewsEnabled(enable: Boolean) {
             powerSwitchView.isEnabled = enable
@@ -477,7 +481,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
     }
 
     private fun onConnectionEvent(view: View, event: HeatPumpConnectionEvent) {
-        Log.i(TAG, "Got event: $event")
+        Log.i(TAG, "Received connection event $event")
         when (event) {
             HeatPumpConnectionEvent.RECONNECTED -> {
                 swipeRefreshLayout.isRefreshing = false
@@ -488,12 +492,20 @@ class DevicePageFragment : Fragment(), MenuProvider {
             }
 
             HeatPumpConnectionEvent.FAILED_INITIAL_CONNECT -> {
-                val snackbar = Snackbar.make(
+                Snackbar.make(
                     view,
                     getString(R.string.device_page_failed_to_connect),
                     Snackbar.LENGTH_LONG
-                )
-                snackbar.show()
+                ).show()
+                findNavController().popBackStack()
+            }
+
+            HeatPumpConnectionEvent.FAILED_NOT_HEAT_PUMP -> {
+                Snackbar.make(
+                    view,
+                    getString(R.string.device_page_not_heatpump),
+                    Snackbar.LENGTH_LONG
+                ).show()
                 findNavController().popBackStack()
             }
         }
