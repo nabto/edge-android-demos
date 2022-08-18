@@ -32,6 +32,9 @@ import org.koin.android.ext.android.inject
 //
 // @TODO: Closing the app before the connection manages to close will not shut down the connection
 
+// 1. Fragment gets an event from an interactable widget
+// 2. Fragment calculates a delta with timestamp and sends it to the ViewModel
+
 enum class HeatPumpMode(val string: String) {
     COOL("COOL"),
     HEAT("HEAT"),
@@ -97,9 +100,14 @@ class HeatPumpViewModel(
 ) : ViewModel() {
     private val TAG = this.javaClass.simpleName
 
-    private val _heatPumpState: MutableLiveData<HeatPumpState> = MutableLiveData()
-    val state: LiveData<HeatPumpState>
-        get() = _heatPumpState
+    private val _serverState: MutableLiveData<HeatPumpState> = MutableLiveData()
+    val serverState: LiveData<HeatPumpState>
+        get() = _serverState
+
+    private var lastClientUpdate = System.nanoTime()
+    private val _clientState = MutableLiveData<HeatPumpState>()
+    val clientState: LiveData<HeatPumpState>
+        get() = _clientState
 
     private val _heatPumpConnState: MutableLiveData<HeatPumpConnectionState> = MutableLiveData(HeatPumpConnectionState.INITIAL_CONNECTING)
     val connectionState: LiveData<HeatPumpConnectionState>
@@ -125,9 +133,13 @@ class HeatPumpViewModel(
         when (state) {
             NabtoConnectionEvent.CONNECTED -> {
                 isPaused = false
+
                 updateLoopJob = viewModelScope.launch {
+                    val heatPumpState = getHeatPumpStateFromDevice()
+                    _clientState.postValue(heatPumpState)
                     updateLoop()
                 }
+
                 if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
                     _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
                 }
@@ -178,7 +190,22 @@ class HeatPumpViewModel(
                     delay(500)
                     continue
                 }
-                updateHeatPumpState()
+                val state = getHeatPumpStateFromDevice()
+                if (state.valid) {
+                    _serverState.postValue(state)
+                }
+
+                // we wait until 3 seconds have passed since the user last changed something before programmatically changing values
+                val currentTime = System.nanoTime()
+                val guardTime = 1e+9 * 3
+                if (currentTime > (lastClientUpdate + guardTime)) {
+                    val merged = state.copy(temperature = _clientState.value?.temperature ?: 0.0)
+                    if (merged != _clientState.value) {
+                        _clientState.postValue(state)
+                    }
+                }
+
+                // delay until the next update is needed
                 val delayTime = (1.0 / updatesPerSecond * 1000.0).toLong()
                 delay(delayTime)
             }
@@ -206,6 +233,7 @@ class HeatPumpViewModel(
 
     fun setPower(toggled: Boolean) {
         viewModelScope.launch {
+            lastClientUpdate = System.nanoTime()
             safeCall({}) {
                 val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/power")
                 val cbor = Cbor.encodeToByteArray(toggled)
@@ -216,12 +244,17 @@ class HeatPumpViewModel(
                     throw(Exception("Failed to set heat pump power state"))
                 }
             }
-            updateHeatPumpState()
+            _clientState.value?.let {
+                val state = it.copy()
+                state.power = toggled
+                _clientState.postValue(state)
+            }
         }
     }
 
     fun setMode(mode: HeatPumpMode) {
         viewModelScope.launch {
+            lastClientUpdate = System.nanoTime()
             safeCall({}) {
                 val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/mode")
                 val cbor = Cbor.encodeToByteArray(mode.string)
@@ -232,12 +265,17 @@ class HeatPumpViewModel(
                     throw(Exception("Failed to set heat pump power state"))
                 }
             }
-            updateHeatPumpState()
+            _clientState.value?.let {
+                val state = it.copy()
+                state.mode = mode
+                _clientState.postValue(state)
+            }
         }
     }
 
     fun setTarget(target: Double) {
         viewModelScope.launch {
+            lastClientUpdate = System.nanoTime()
             safeCall({}) {
                 val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/target")
                 val cbor = Cbor.encodeToByteArray(target)
@@ -248,11 +286,15 @@ class HeatPumpViewModel(
                     throw(Exception("Failed to set heat pump target temperature"))
                 }
             }
-            updateHeatPumpState()
+            _clientState.value?.let {
+                val state = it.copy()
+                state.target = target
+                _clientState.postValue(state)
+            }
         }
     }
 
-    private suspend fun updateHeatPumpState() {
+    private suspend fun getHeatPumpStateFromDevice(): HeatPumpState {
         // @TODO: We probably dont need invalidState
         val invalidState = HeatPumpState(HeatPumpMode.UNKNOWN, false, 0.0, 0.0, false)
         val state = safeCall(invalidState) {
@@ -267,9 +309,7 @@ class HeatPumpViewModel(
 
             return@safeCall decodeHeatPumpStateFromCBOR(data)
         }
-        if (state.valid) {
-            _heatPumpState.postValue(state)
-        }
+        return state
     }
 
     override fun onCleared() {
@@ -328,7 +368,11 @@ class DevicePageFragment : Fragment(), MenuProvider {
         powerSwitchView = view.findViewById(R.id.dp_power_switch)
         targetSliderView = view.findViewById(R.id.dp_target_slider)
 
-        model.state.observe(viewLifecycleOwner, Observer { state -> onStateChanged(view, state) })
+        model.clientState.observe(viewLifecycleOwner, Observer { state -> onStateChanged(view, state) })
+        model.serverState.observe(viewLifecycleOwner, Observer { state ->
+            temperatureView.text = getString(R.string.temperature_format).format(state.temperature)
+        })
+
         model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
         model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
 
@@ -359,40 +403,33 @@ class DevicePageFragment : Fragment(), MenuProvider {
             model.setPower(powerSwitchView.isChecked)
         }
 
-        targetSliderView.addOnChangeListener { _, value, _ ->
-            model.setTarget(value.toDouble())
-        }
-
         modeSpinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
                 val mode = HeatPumpMode.values()[pos]
                 model.setMode(mode)
             }
 
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onNothingSelected(parent: AdapterView<*>?) { }
         }
 
-        val touchListener = View.OnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
+        targetSliderView.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+            override fun onStartTrackingTouch(slider: Slider) {
                 isTouching = true
-            } else if (event.action == MotionEvent.ACTION_UP) {
+            }
+
+            override fun onStopTrackingTouch(slider: Slider) {
+                model.setTarget(slider.value.toDouble())
                 isTouching = false
             }
-            false
-        }
 
-        // @TODO: Override performClick for accessibility?
-        powerSwitchView.setOnTouchListener(touchListener)
-        targetSliderView.setOnTouchListener(touchListener)
+        })
     }
 
-    fun refresh() {
+    private fun refresh() {
         model.tryReconnect()
     }
 
     private fun onStateChanged(view: View, state: HeatPumpState) {
-        temperatureView.text = getString(R.string.temperature_format).format(state.temperature)
-
         if (isTouching) return
         powerSwitchView.isChecked = state.power
         targetSliderView.value = state.target.toFloat()
