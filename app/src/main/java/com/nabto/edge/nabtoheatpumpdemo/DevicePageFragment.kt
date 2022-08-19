@@ -26,10 +26,6 @@ import kotlinx.serialization.*
 import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
 
-// @TODO: Clicking on a device should dispatch to a correct fragment for that device
-//        E.g. click on heatpump device -> navigate to a heatpump fragment
-//        Currently we always navigate to DevicePageFragment which is just a heatpump fragment
-//
 // @TODO: Closing the app before the connection manages to close will not shut down the connection
 
 enum class HeatPumpMode(val string: String) {
@@ -90,6 +86,7 @@ enum class HeatPumpConnectionEvent {
     FAILED_RECONNECT,
     FAILED_INITIAL_CONNECT,
     FAILED_NOT_HEAT_PUMP,
+    FAILED_TO_UPDATE
 }
 
 class HeatPumpViewModel(
@@ -244,8 +241,7 @@ class HeatPumpViewModel(
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
                 coap.awaitExecute()
                 if (coap.responseStatusCode != 204) {
-                    // @TODO: Better error handling
-                    throw(Exception("Failed to set heat pump power state"))
+                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_TO_UPDATE)
                 }
             }
             _clientState.value?.let {
@@ -265,8 +261,7 @@ class HeatPumpViewModel(
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
                 coap.awaitExecute()
                 if (coap.responseStatusCode != 204) {
-                    // @TODO: Better error handling
-                    throw(Exception("Failed to set heat pump power state"))
+                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_TO_UPDATE)
                 }
             }
             _clientState.value?.let {
@@ -286,8 +281,7 @@ class HeatPumpViewModel(
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
                 coap.awaitExecute()
                 if (coap.responseStatusCode != 204) {
-                    // @TODO: Better error handling
-                    throw(Exception("Failed to set heat pump target temperature"))
+                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_TO_UPDATE)
                 }
             }
             _clientState.value?.let {
@@ -507,6 +501,14 @@ class DevicePageFragment : Fragment(), MenuProvider {
                     Snackbar.LENGTH_LONG
                 ).show()
                 findNavController().popBackStack()
+            }
+
+            HeatPumpConnectionEvent.FAILED_TO_UPDATE -> {
+                Snackbar.make(
+                    view,
+                    getString(R.string.device_page_failed_update),
+                    Snackbar.LENGTH_LONG
+                ).show()
             }
         }
     }
