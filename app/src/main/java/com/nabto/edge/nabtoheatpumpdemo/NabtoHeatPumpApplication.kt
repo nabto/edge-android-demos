@@ -131,7 +131,7 @@ data class ConnectionHandle(
 )
 
 fun interface ConnectionEventListener {
-    fun onConnectionEvent(event: NabtoConnectionEvent)
+    fun onConnectionEvent(event: NabtoConnectionEvent, handle: ConnectionHandle)
 }
 
 interface NabtoConnectionManager {
@@ -143,7 +143,7 @@ interface NabtoConnectionManager {
 
     fun getConnection(handle: ConnectionHandle): Connection
     fun createCoap(handle: ConnectionHandle, method: String, path: String): Coap
-    fun getConnectionState(handle: ConnectionHandle): LiveData<NabtoConnectionState>
+    fun getConnectionState(handle: ConnectionHandle): LiveData<NabtoConnectionState>?
 }
 
 class NabtoConnectionManagerImpl(
@@ -182,7 +182,7 @@ class NabtoConnectionManagerImpl(
         connectionMap[handle]?.subscribers?.remove(listener)
     }
 
-    private fun publish(data: ConnectionData?, event: NabtoConnectionEvent) {
+    private fun publish(data: ConnectionData?, event: NabtoConnectionEvent, handle: ConnectionHandle) {
         data?.state?.postValue(when (event) {
             NabtoConnectionEvent.CONNECTED -> NabtoConnectionState.CONNECTED
             NabtoConnectionEvent.CONNECTING -> NabtoConnectionState.CONNECTING
@@ -194,12 +194,12 @@ class NabtoConnectionManagerImpl(
         })
 
         data?.subscribers?.forEach {
-            it.onConnectionEvent(event)
+            it.onConnectionEvent(event, handle)
         }
     }
 
     private fun publish(handle: ConnectionHandle, event: NabtoConnectionEvent) {
-        publish(connectionMap[handle], event)
+        publish(connectionMap[handle], event, handle)
     }
 
     private fun connect(handle: ConnectionHandle, makeNewConnection: Boolean = false) {
@@ -297,10 +297,10 @@ class NabtoConnectionManagerImpl(
     }
 
     // closes the connection but does not release the handle
-    private fun close(handle: ConnectionHandle, reason: NabtoConnectionEvent = NabtoConnectionEvent.CLOSED) {
+    private fun close(handle: ConnectionHandle) {
         connectionMap[handle]?.let { data ->
             if (data.state.value != NabtoConnectionState.CLOSED) {
-                publish(handle, reason)
+                publish(handle, NabtoConnectionEvent.CLOSED)
                 repo.getApplicationScope().launch(Dispatchers.IO) {
                     data.connection.close()
                     data.connection.removeConnectionEventsListener(data.connectionEventsCallback)
@@ -312,7 +312,7 @@ class NabtoConnectionManagerImpl(
     override fun releaseHandle(handle: ConnectionHandle) {
         connectionMap.remove(handle)?.let { data ->
             if (data.state.value != NabtoConnectionState.CLOSED) {
-                publish(data, NabtoConnectionEvent.CLOSED)
+                publish(data, NabtoConnectionEvent.CLOSED, handle)
                 repo.getApplicationScope().launch(Dispatchers.IO) {
                     if (data.state.value == NabtoConnectionState.CONNECTED) data.connection.close()
                     data.connection.removeConnectionEventsListener(data.connectionEventsCallback)
@@ -333,10 +333,8 @@ class NabtoConnectionManagerImpl(
         }
     }
 
-    override fun getConnectionState(handle: ConnectionHandle): LiveData<NabtoConnectionState> {
-        return connectionMap[handle]?.state ?: run {
-            throw IllegalStateException("Attempted to get connection state for invalid handle!")
-        }
+    override fun getConnectionState(handle: ConnectionHandle): LiveData<NabtoConnectionState>? {
+        return connectionMap[handle]?.state
     }
 
     override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {

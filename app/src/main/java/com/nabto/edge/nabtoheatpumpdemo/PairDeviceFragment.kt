@@ -166,8 +166,8 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
                 "", "", ""
             )
 
-            handle = manager.requestConnection(device) {
-                when (it) {
+            handle = manager.requestConnection(device) { event, _ ->
+                when (event) {
                     NabtoConnectionEvent.CONNECTED -> {
                         viewModelScope.launch { pairAndUpdateDevice(username, friendlyName) }
                     }

@@ -1,7 +1,5 @@
 package com.nabto.edge.nabtoheatpumpdemo
 
-import android.graphics.Color.green
-import android.graphics.PorterDuff
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -12,25 +10,30 @@ import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.findFragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.nabto.edge.iamutil.IamUtil
+import com.nabto.edge.iamutil.ktx.awaitIsCurrentUserPaired
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
-import org.koin.androidx.viewmodel.ext.android.viewModel
-import org.koin.core.parameter.parametersOf
+
 
 enum class HomeDeviceItemStatus {
     ONLINE,
     CONNECTING,
-    OFFLINE
+    OFFLINE,
+    UNPAIRED
 }
 
-class HomeViewModelFactory(private val database: DeviceDatabase, private val manager: NabtoConnectionManager): ViewModelProvider.Factory {
+class HomeViewModelFactory(
+    private val database: DeviceDatabase,
+    private val manager: NabtoConnectionManager
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return modelClass.getConstructor(
             DeviceDatabase::class.java,
@@ -39,66 +42,85 @@ class HomeViewModelFactory(private val database: DeviceDatabase, private val man
     }
 }
 
-class HomeViewModel(private val database: DeviceDatabase, private val manager: NabtoConnectionManager) : ViewModel() {
+class HomeViewModel(
+    private val database: DeviceDatabase,
+    private val manager: NabtoConnectionManager
+) : ViewModel() {
+    private val TAG = javaClass.simpleName
+
     data class HomeDeviceItem(
-        var observer: Observer<NabtoConnectionState>?,
+        //var observer: Observer<NabtoConnectionState>?,
         val device: Device,
-        val handle: ConnectionHandle,
-        var status: HomeDeviceItemStatus
+        //val handle: ConnectionHandle,
+        val status: HomeDeviceItemStatus
     )
 
     private val _deviceList = MutableLiveData<List<HomeDeviceItem>>()
     val deviceList: LiveData<List<HomeDeviceItem>>
         get() = _deviceList
 
-    private var devices: List<Device> = emptyList()
-    private val connections = mutableMapOf<Device, HomeDeviceItem>()
+    private val connections = mutableMapOf<Device, ConnectionHandle>()
+    private val status = mutableMapOf<Device, HomeDeviceItemStatus>()
+
+    //private val connections = mutableMapOf<Device, HomeDeviceItem>()
+
+    private var devices: List<Device> = listOf()
 
     init {
+        Log.i(TAG, "Initializing...")
         viewModelScope.launch {
-            database.deviceDao().getAll().collect { devices ->
-                this@HomeViewModel.devices = devices
-                connectDevices()
+            database.deviceDao().getAll().collect { devs ->
+                this@HomeViewModel.devices = devs
+                sync()
             }
         }
     }
 
-    fun connectDevices() {
+    fun sync() {
+        fun post() {
+            val list = devices.map {
+                HomeDeviceItem(it, status.getOrDefault(it, HomeDeviceItemStatus.OFFLINE))
+            }
+            _deviceList.postValue(list)
+        }
+
         for (dev in devices) {
-            if (!connections.contains(dev)) {
-                val handle = manager.requestConnection(dev)
-
-                val item = HomeDeviceItem(
-                    device = dev,
-                    observer = null,
-                    handle = handle,
-                    status = HomeDeviceItemStatus.CONNECTING
-                )
-
-                val observer = Observer<NabtoConnectionState> { state ->
-                    item.status = when (state) {
-                        NabtoConnectionState.CONNECTED -> HomeDeviceItemStatus.ONLINE
-                        NabtoConnectionState.CONNECTING -> HomeDeviceItemStatus.CONNECTING
+            status[dev] = status[dev] ?: HomeDeviceItemStatus.OFFLINE
+            connections[dev] = connections[dev] ?: manager.requestConnection(dev) { event, handle ->
+                viewModelScope.launch {
+                    status[dev] = when (event) {
+                        NabtoConnectionEvent.CONNECTING -> HomeDeviceItemStatus.CONNECTING
+                        NabtoConnectionEvent.CONNECTED -> {
+                            val iam = IamUtil.create()
+                            val paired = iam.awaitIsCurrentUserPaired(manager.getConnection(handle))
+                            if (paired) {
+                                HomeDeviceItemStatus.ONLINE
+                            } else {
+                                HomeDeviceItemStatus.UNPAIRED
+                            }
+                        }
                         else -> HomeDeviceItemStatus.OFFLINE
                     }
-                    _deviceList.postValue(connections.values.toList())
+                    post()
                 }
-                item.observer = observer
-
-                connections[dev] = item
-                manager.getConnectionState(handle).observeForever(observer)
             }
         }
-        _deviceList.postValue(connections.values.toList())
+
+        post()
     }
 
-    fun releaseConnections() {
-        super.onCleared()
-        for (item in connections.values) {
-            item.observer?.let { manager.getConnectionState(item.handle).removeObserver(it) }
-            manager.releaseHandle(item.handle)
+    fun reconnect() {
+        for ((_, handle) in connections) {
+            manager.reconnect(handle)
+        }
+    }
+
+    fun release() {
+        for ((_, handle) in connections) {
+            manager.releaseHandle(handle)
         }
         connections.clear()
+        status.clear()
     }
 }
 
@@ -132,13 +154,19 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
         holder.view.setOnClickListener {
             it.findFragment<HomeFragment>().onDeviceClick(dataSet[position].device)
         }
-        val color = when (dataSet[position].status) {
-            HomeDeviceItemStatus.ONLINE -> R.color.green
-            HomeDeviceItemStatus.CONNECTING -> R.color.red
-            HomeDeviceItemStatus.OFFLINE -> R.color.red
+        val (color, icon) = when (dataSet[position].status) {
+            HomeDeviceItemStatus.ONLINE -> R.color.green to R.drawable.ic_baseline_check_circle
+            HomeDeviceItemStatus.UNPAIRED -> R.color.yellow to R.drawable.ic_baseline_lock
+            HomeDeviceItemStatus.CONNECTING -> R.color.red to R.drawable.ic_baseline_warning
+            HomeDeviceItemStatus.OFFLINE -> R.color.red to R.drawable.ic_baseline_warning
         }
-        Log.i("HOME", dataSet[position].status.name)
-        holder.connectionStatusView.setColorFilter(ContextCompat.getColor(holder.view.context, color))
+        holder.connectionStatusView.setImageResource(icon)
+        holder.connectionStatusView.setColorFilter(
+            ContextCompat.getColor(
+                holder.view.context,
+                color
+            )
+        )
     }
 
     override fun getItemCount() = dataSet.size
@@ -146,6 +174,8 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
 
 
 class HomeFragment : Fragment(), MenuProvider {
+    private val TAG = javaClass.simpleName
+
     private val database: DeviceDatabase by inject()
     private val manager: NabtoConnectionManager by inject()
     private val model: HomeViewModel by viewModels {
@@ -166,8 +196,9 @@ class HomeFragment : Fragment(), MenuProvider {
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
         val recycler = view.findViewById<RecyclerView>(R.id.home_recycler)
+        val layoutManager = LinearLayoutManager(activity)
         recycler.adapter = deviceListAdapter
-        recycler.layoutManager = LinearLayoutManager(activity)
+        recycler.layoutManager = layoutManager
 
         view.findViewById<Button>(R.id.home_pair_new_button).setOnClickListener {
             findNavController().navigate(R.id.action_homeFragment_to_pairNewFragment)
@@ -175,11 +206,22 @@ class HomeFragment : Fragment(), MenuProvider {
 
         model.deviceList.observe(viewLifecycleOwner, Observer { devices ->
             deviceListAdapter.submitDeviceList(devices)
-            view.findViewById<View>(R.id.home_empty_layout).visibility = if (devices.isEmpty()) View.VISIBLE else View.GONE
+            view.findViewById<View>(R.id.home_empty_layout).visibility =
+                if (devices.isEmpty()) View.VISIBLE else View.GONE
+            recycler.visibility = if (devices.isEmpty()) View.GONE else View.VISIBLE
         })
+
+        val dividerItemDecoration = DividerItemDecoration(
+            recycler.context,
+            layoutManager.orientation
+        )
+        recycler.addItemDecoration(dividerItemDecoration)
+
+        model.sync()
     }
 
     fun onDeviceClick(device: Device) {
+        model.release()
         val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
         val bundle = bundleOf("device" to device, "title" to title)
         findNavController().navigate(R.id.action_homeFragment_to_devicePageFragment, bundle)
@@ -191,19 +233,15 @@ class HomeFragment : Fragment(), MenuProvider {
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
         if (menuItem.itemId == R.id.action_pair_new) {
+            model.release()
             findNavController().navigate(R.id.action_homeFragment_to_pairNewFragment)
             return true
         }
+
+        if (menuItem.itemId == R.id.action_device_refresh) {
+            model.reconnect()
+            return true
+        }
         return false
-    }
-
-    override fun onStart() {
-        super.onStart()
-        model.connectDevices()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        model.releaseConnections()
     }
 }

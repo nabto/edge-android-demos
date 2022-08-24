@@ -25,6 +25,7 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.*
 import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
+import kotlin.math.roundToInt
 
 // @TODO: Closing the app before the connection manages to close will not shut down the connection
 
@@ -86,7 +87,8 @@ enum class HeatPumpConnectionEvent {
     FAILED_RECONNECT,
     FAILED_INITIAL_CONNECT,
     FAILED_NOT_HEAT_PUMP,
-    FAILED_TO_UPDATE
+    FAILED_TO_UPDATE,
+    FAILED_NOT_PAIRED
 }
 
 class HeatPumpViewModel(
@@ -118,7 +120,7 @@ class HeatPumpViewModel(
 
     private var isPaused = false
     private var updateLoopJob: Job? = null
-    private val handle = connectionManager.requestConnection(device) { onConnectionChanged(it) }
+    private val handle = connectionManager.requestConnection(device) { event, _ -> onConnectionChanged(event) }
 
     // How many times per second should we request a state update from the device?
     private val updatesPerSecond = 10.0
@@ -131,6 +133,13 @@ class HeatPumpViewModel(
 
                 updateLoopJob = viewModelScope.launch {
                     val iam = IamUtil.create()
+                    val isPaired = iam.isCurrentUserPaired(connectionManager.getConnection(handle))
+                    if (!isPaired) {
+                        Log.w(TAG, "User connected to device but is not paired!")
+                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_NOT_PAIRED)
+                        return@launch
+                    }
+
                     val details = iam.getDeviceDetails(connectionManager.getConnection(handle))
                     if (details.appName != "HeatPump") {
                         Log.w(TAG, "The app name of the connected device is ${details.appName} instead of HeatPump!")
@@ -368,8 +377,12 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
         model.clientState.observe(viewLifecycleOwner, Observer { state -> onStateChanged(view, state) })
         model.serverState.observe(viewLifecycleOwner, Observer { state ->
-            temperatureView.text = getString(R.string.temperature_format).format(state.temperature)
+            temperatureView.text = getString(R.string.temperature_format, state.temperature)
         })
+
+        targetSliderView.addOnChangeListener { slider, value, fromUser ->
+            view.findViewById<TextView>(R.id.dp_target_temperature).text = getString(R.string.target_format, value.roundToInt())
+        }
 
         model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
         model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
@@ -483,6 +496,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
             HeatPumpConnectionEvent.FAILED_RECONNECT -> {
                 swipeRefreshLayout.isRefreshing = false
+                //view.findViewById<TextView>(R.id.dp_lost_connection_text).text = "RECONNECT FAILED"
             }
 
             HeatPumpConnectionEvent.FAILED_INITIAL_CONNECT -> {
@@ -509,6 +523,15 @@ class DevicePageFragment : Fragment(), MenuProvider {
                     getString(R.string.device_page_failed_update),
                     Snackbar.LENGTH_LONG
                 ).show()
+            }
+
+            HeatPumpConnectionEvent.FAILED_NOT_PAIRED -> {
+                Snackbar.make(
+                    view,
+                    getString(R.string.device_failed_not_paired),
+                    Snackbar.LENGTH_LONG
+                ).show()
+                findNavController().popBackStack()
             }
         }
     }
