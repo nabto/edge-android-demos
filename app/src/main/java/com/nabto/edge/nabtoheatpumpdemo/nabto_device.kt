@@ -35,6 +35,9 @@ interface DeviceDao {
 
     @Delete
     fun delete(device: Device)
+
+    @Query("DELETE FROM devices")
+    fun deleteAll()
 }
 
 @Database(entities = [Device::class], version = 1)

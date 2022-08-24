@@ -39,4 +39,21 @@
     <string name="device_failed_not_paired">Failed to connect, you are not paired with this device.</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="title_app_settings">App Settings</string>
+    <string name="app_settings_displayname">Fill in your display name here. Other users of shared devices can see this display name.</string>
+    <string name="display_name">Display Name</string>
+    <string name="app_settings_client_pk">Here you can reset your client private key. This key is used for authentication with a device. Resetting will delete the current private key and create a new one for you. You will have to redo pairing with your devices in this case. Only reset your client private key when you absolutely have to. Your current private key is</string>
+    <string name="app_settings_database_reset">Here you can reset your remembered devices. Note that you\'re still paired with the devices, you will have to add them again using discover or pairing string.</string>
+    <string name="client_private_key">Client Private Key</string>
+    <string name="device_database">Device Database</string>
+    <string name="app_settings_reset_button">Reset device database</string>
+    <string name="app_settings_pk_reset_button">Reset client private key</string>
+    <string name="app_settings_display_name_button">Save display name</string>
+    <string name="app_settings_saved_snack">Display name has been saved.</string>
+    <string name="confirm">Confirm</string>
+    <string name="cancel">Cancel</string>
+    <string name="app_settings_database_reset_dialog">Are you sure you want to clear all remembered devices?</string>
+    <string name="app_settings_reset_client_pk_dialog">Are you sure you want to delete your current private key and generate a new one?</string>
+    <string name="app_settings_client_pk_snack">Your private key has been regenerated.</string>
+    <string name="app_settings_database_reset_snack">Your list of remembered devices have been cleared.</string>
 </resources>

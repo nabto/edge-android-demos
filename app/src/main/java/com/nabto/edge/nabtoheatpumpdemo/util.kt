@@ -1,6 +1,11 @@
 package com.nabto.edge.nabtoheatpumpdemo
 
+import android.app.Activity
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.*
+import com.google.android.material.snackbar.Snackbar
 
 interface LiveEvent<T> {
     fun observe(owner: LifecycleOwner, obs: Observer<T>)
@@ -22,5 +27,24 @@ class MutableLiveEvent<T> : LiveEvent<T> {
         observers.forEach { obs ->
             obs.onChanged(event)
         }
+    }
+}
+
+fun View.snack(
+    msg: String,
+    length: Int = Snackbar.LENGTH_LONG
+): Snackbar {
+    val snack = Snackbar.make(this, msg, length)
+    snack.show()
+    return snack
+}
+
+fun Fragment.clearFocusAndHideKeyboard() {
+    val activity = requireActivity()
+    val imm = activity.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+    val view = activity.currentFocus
+    if (view != null) {
+        view.clearFocus()
+        imm.hideSoftInputFromWindow(view.windowToken, 0)
     }
 }

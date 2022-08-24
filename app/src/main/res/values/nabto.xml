@@ -2,5 +2,6 @@
 <resources>
     <string name="nabto_shared_preferences">com.nabto.edge.nabtoheatpumpdemo.nabto_shared_preferences</string>
     <string name="nabto_client_private_key_pref">client_private_key</string>
+    <string name="nabto_display_name_pref">nabto_display_name</string>
     <string name="nabto_server_key">sk-d8254c6f790001003d0c842d1b63b134</string>
 </resources>

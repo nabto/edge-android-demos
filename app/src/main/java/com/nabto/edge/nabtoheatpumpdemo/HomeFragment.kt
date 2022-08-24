@@ -242,6 +242,11 @@ class HomeFragment : Fragment(), MenuProvider {
             model.reconnect()
             return true
         }
+
+        if (menuItem.itemId == R.id.action_settings) {
+            model.release()
+            findNavController().navigate(R.id.action_homeFragment_to_appSettingsFragment)
+        }
         return false
     }
 }

@@ -23,6 +23,9 @@
         <action
             android:id="@+id/action_homeFragment_to_pairNewFragment"
             app:destination="@id/pairNewFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_appSettingsFragment"
+            app:destination="@id/appSettingsFragment" />
     </fragment>
     <fragment
         android:id="@+id/pairNewFragment"
@@ -57,4 +60,9 @@
             <argument android:name="title" />
         </fragment>
     </navigation>
+    <fragment
+        android:id="@+id/appSettingsFragment"
+        android:name="com.nabto.edge.nabtoheatpumpdemo.AppSettingsFragment"
+        android:label="@string/title_app_settings"
+        tools:layout="@layout/fragment_app_settings" />
 </navigation>
