@@ -177,7 +177,6 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
         holder.view.setOnClickListener {
             it.findFragment<HomeFragment>().onDeviceClick(dataSet[position].device)
         }
-        Log.i("ASDSD", dataSet[position].toString())
         val (color, icon) = when (dataSet[position].status) {
             HomeDeviceItemStatus.ONLINE -> R.color.green to R.drawable.ic_baseline_check_circle
             HomeDeviceItemStatus.UNPAIRED -> R.color.yellow to R.drawable.ic_baseline_lock
