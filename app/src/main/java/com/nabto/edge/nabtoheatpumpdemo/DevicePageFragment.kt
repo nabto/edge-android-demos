@@ -34,8 +34,7 @@ enum class HeatPumpMode(val string: String) {
     COOL("COOL"),
     HEAT("HEAT"),
     FAN("FAN"),
-    DRY("DRY"),
-    UNKNOWN("")
+    DRY("DRY")
 }
 
 data class HeatPumpState(
@@ -314,7 +313,7 @@ class HeatPumpViewModel(
     }
 
     private suspend fun getHeatPumpStateFromDevice(): HeatPumpState {
-        val invalidState = HeatPumpState(HeatPumpMode.UNKNOWN, false, 0.0, 0.0, false)
+        val invalidState = HeatPumpState(HeatPumpMode.COOL, false, 0.0, 0.0, false)
         val state = safeCall(invalidState) {
             val coap = connectionManager.createCoap(handle, "GET", "/heat-pump")
             coap.awaitExecute()
@@ -428,8 +427,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
         modeSpinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                val mode = HeatPumpMode.values()[pos]
-                model.setMode(mode)
+                if (pos >= 0 && pos < HeatPumpMode.values().size) {
+                    val mode = HeatPumpMode.values()[pos]
+                    model.setMode(mode)
+                }
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) { }
