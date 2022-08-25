@@ -80,7 +80,14 @@ class PairNewFragment : Fragment() {
         recycler.adapter = deviceListAdapter
         recycler.layoutManager = LinearLayoutManager(activity)
 
+        val emptyCard = view.findViewById<View>(R.id.pair_new_empty_layout)
+
         repo.getScannedDevices().observe(viewLifecycleOwner) { devices ->
+            if (devices.isEmpty()) {
+                emptyCard.visibility = View.VISIBLE
+            } else {
+                emptyCard.visibility = View.GONE
+            }
             deviceListAdapter.submitDeviceList(devices)
         }
     }
@@ -96,7 +103,7 @@ class PairNewFragment : Fragment() {
                 Snackbar.make(requireView(), getString(R.string.pair_device_already_paired), Snackbar.LENGTH_LONG).show()
             } else {
                 val bundle = PairingData.makeBundle(mdnsDevice.productId, mdnsDevice.deviceId, "")
-                findNavController().navigate(R.id.action_pairNewFragment_to_pairDeviceFragment, bundle)
+                findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
             }
         }
     }

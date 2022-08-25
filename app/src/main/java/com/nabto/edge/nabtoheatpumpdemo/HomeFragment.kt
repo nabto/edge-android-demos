@@ -17,6 +17,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.nabto.edge.iamutil.IamException
 import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.awaitIsCurrentUserPaired
 import kotlinx.coroutines.launch
@@ -49,25 +50,31 @@ class HomeViewModel(
     private val TAG = javaClass.simpleName
 
     data class HomeDeviceItem(
-        //var observer: Observer<NabtoConnectionState>?,
         val device: Device,
-        //val handle: ConnectionHandle,
         val status: HomeDeviceItemStatus
     )
+
+    data class DeviceKey(
+        val productId: String,
+        val deviceId: String
+    ) {
+        companion object {
+            fun fromDevice(dev: Device): DeviceKey {
+                return DeviceKey(dev.productId, dev.deviceId)
+            }
+        }
+    }
 
     private val _deviceList = MutableLiveData<List<HomeDeviceItem>>()
     val deviceList: LiveData<List<HomeDeviceItem>>
         get() = _deviceList
 
-    private val connections = mutableMapOf<Device, ConnectionHandle>()
-    private val status = mutableMapOf<Device, HomeDeviceItemStatus>()
-
-    //private val connections = mutableMapOf<Device, HomeDeviceItem>()
+    private val connections = mutableMapOf<DeviceKey, ConnectionHandle>()
+    private val status = mutableMapOf<DeviceKey, HomeDeviceItemStatus>()
 
     private var devices: List<Device> = listOf()
 
     init {
-        Log.i(TAG, "Initializing...")
         viewModelScope.launch {
             database.deviceDao().getAll().collect { devs ->
                 this@HomeViewModel.devices = devs
@@ -76,27 +83,39 @@ class HomeViewModel(
         }
     }
 
+    fun getStatus(dev: Device): HomeDeviceItemStatus {
+        val key = DeviceKey.fromDevice(dev)
+        return status.getOrDefault(key, HomeDeviceItemStatus.OFFLINE)
+    }
+
     fun sync() {
         fun post() {
             val list = devices.map {
-                HomeDeviceItem(it, status.getOrDefault(it, HomeDeviceItemStatus.OFFLINE))
+                HomeDeviceItem(it, status.getOrDefault(DeviceKey.fromDevice(it), HomeDeviceItemStatus.OFFLINE))
             }
             _deviceList.postValue(list)
         }
 
         for (dev in devices) {
-            status[dev] = status[dev] ?: HomeDeviceItemStatus.OFFLINE
-            connections[dev] = connections[dev] ?: manager.requestConnection(dev) { event, handle ->
+            val key = DeviceKey.fromDevice(dev)
+            status[key] = status[key] ?: HomeDeviceItemStatus.OFFLINE
+            connections[key] = connections[key] ?: manager.requestConnection(dev) { event, handle ->
                 viewModelScope.launch {
-                    status[dev] = when (event) {
+                    status[key] = when (event) {
                         NabtoConnectionEvent.CONNECTING -> HomeDeviceItemStatus.CONNECTING
                         NabtoConnectionEvent.CONNECTED -> {
                             val iam = IamUtil.create()
-                            val paired = iam.awaitIsCurrentUserPaired(manager.getConnection(handle))
-                            if (paired) {
-                                HomeDeviceItemStatus.ONLINE
-                            } else {
-                                HomeDeviceItemStatus.UNPAIRED
+                            try {
+                                val paired =
+                                    iam.awaitIsCurrentUserPaired(manager.getConnection(handle))
+                                if (paired) {
+                                    HomeDeviceItemStatus.ONLINE
+                                } else {
+                                    HomeDeviceItemStatus.UNPAIRED
+                                }
+                            } catch (e: IamException) {
+                                Log.i(TAG, "Iam exception caught: $e")
+                                HomeDeviceItemStatus.OFFLINE
                             }
                         }
                         else -> HomeDeviceItemStatus.OFFLINE
@@ -201,7 +220,7 @@ class HomeFragment : Fragment(), MenuProvider {
         recycler.layoutManager = layoutManager
 
         view.findViewById<Button>(R.id.home_pair_new_button).setOnClickListener {
-            findNavController().navigate(R.id.action_homeFragment_to_pairNewFragment)
+            findNavController().navigate(R.id.action_homeFragment_to_pairLandingFragment)
         }
 
         model.deviceList.observe(viewLifecycleOwner, Observer { devices ->
@@ -221,10 +240,16 @@ class HomeFragment : Fragment(), MenuProvider {
     }
 
     fun onDeviceClick(device: Device) {
-        model.release()
-        val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
-        val bundle = bundleOf("device" to device, "title" to title)
-        findNavController().navigate(R.id.action_homeFragment_to_devicePageFragment, bundle)
+        if (model.getStatus(device) == HomeDeviceItemStatus.UNPAIRED) {
+            model.release()
+            val bundle = PairingData.makeBundle(device.productId, device.deviceId, "")
+            findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
+        } else {
+            model.release()
+            val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
+            val bundle = bundleOf("device" to device, "title" to title)
+            findNavController().navigate(R.id.action_homeFragment_to_devicePageFragment, bundle)
+        }
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -234,7 +259,7 @@ class HomeFragment : Fragment(), MenuProvider {
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
         if (menuItem.itemId == R.id.action_pair_new) {
             model.release()
-            findNavController().navigate(R.id.action_homeFragment_to_pairNewFragment)
+            findNavController().navigate(R.id.action_homeFragment_to_pairLandingFragment)
             return true
         }
 

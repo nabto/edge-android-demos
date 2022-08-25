@@ -56,4 +56,12 @@
     <string name="app_settings_reset_client_pk_dialog">Are you sure you want to delete your current private key and generate a new one?</string>
     <string name="app_settings_client_pk_snack">Your private key has been regenerated.</string>
     <string name="app_settings_database_reset_snack">Your list of remembered devices have been cleared.</string>
+    <string name="pair_landing_discover_text">The discovered devices list shows a list of devices that have been discovered with mDNS and can be paired with.</string>
+    <string name="title_pairing_landing">Pairing</string>
+    <string name="pair_device_error_username_empty">Username cannot be empty</string>
+    <string name="pair_device_error_username_invalid">Invalid username</string>
+    <string name="pair_device_error_friendlyname_empty">Friendly name cannot be empty</string>
+    <string name="pair_new_empty_card">No devices have been discovered on the local network through mDNS. If your device is turned on and has mDNS enabled, you may have to wait a bit for it to show up.</string>
+    <string name="device_failed_unknown">Failed to connect for some unknown reason.</string>
+    <string name="failed_reconnect">Failed to reconnect!</string>
 </resources>

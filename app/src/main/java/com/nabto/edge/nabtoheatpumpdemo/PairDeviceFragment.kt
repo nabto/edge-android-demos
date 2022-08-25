@@ -171,6 +171,15 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
                     NabtoConnectionEvent.CONNECTED -> {
                         viewModelScope.launch { pairAndUpdateDevice(username, friendlyName) }
                     }
+                    NabtoConnectionEvent.DEVICE_DISCONNECTED -> {
+                        _pairingResult.postValue(PairingResult.Failed)
+                    }
+                    NabtoConnectionEvent.FAILED_TO_CONNECT -> {
+                        _pairingResult.postValue(PairingResult.Failed)
+                    }
+                    NabtoConnectionEvent.CLOSED -> {
+                        _pairingResult.postValue(PairingResult.Failed)
+                    }
                     else -> {}
                 }
             }
@@ -187,6 +196,7 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
 
 class PairDeviceFragment : Fragment() {
     private val TAG = "PairDeviceFragment"
+    private val repo: NabtoRepository by inject()
     private val database: DeviceDatabase by inject()
     private val manager: NabtoConnectionManager by inject()
     private val model: PairDeviceViewModel by viewModels {
@@ -237,9 +247,33 @@ class PairDeviceFragment : Fragment() {
 
         val etUsername = view.findViewById<EditText>(R.id.pair_device_username)
         val etFriendlyName = view.findViewById<EditText>(R.id.pair_device_friendlyname)
+
+        val cleanedUsername = (repo.getDisplayName().value ?: "").filter { it.isLetterOrDigit() }.lowercase()
+        etUsername.setText(cleanedUsername)
+
         view.findViewById<Button>(R.id.complete_pairing).setOnClickListener { button ->
+            val username = etUsername.text.toString()
+            val friendlyName = etFriendlyName.text.toString()
+
+            if (username.isEmpty())
+            {
+                etUsername.error = getString(R.string.pair_device_error_username_empty)
+                return@setOnClickListener
+            }
+
+            val isValid = username.all { it.isDigit() || it.isLowerCase() }
+            if (!isValid) {
+                etUsername.error = getString(R.string.pair_device_error_username_invalid)
+                return@setOnClickListener
+            }
+
+            if (friendlyName.isEmpty()) {
+                etFriendlyName.error = getString(R.string.pair_device_error_friendlyname_empty)
+                return@setOnClickListener
+            }
+
             button.isEnabled = false
-            model.initiatePairing(etUsername.text.toString(), etFriendlyName.text.toString())
+            model.initiatePairing(username, etFriendlyName.text.toString())
         }
     }
 }

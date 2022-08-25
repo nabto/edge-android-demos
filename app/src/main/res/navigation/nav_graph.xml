@@ -12,6 +12,10 @@
         app:popUpToInclusive="true"
         />
 
+    <action
+        android:id="@+id/action_nav_pairDeviceFragment"
+        app:destination="@id/pairDeviceFragment" />
+
     <fragment
         android:id="@+id/homeFragment"
         android:name="com.nabto.edge.nabtoheatpumpdemo.HomeFragment"
@@ -21,20 +25,17 @@
             android:id="@+id/action_homeFragment_to_devicePageFragment"
             app:destination="@id/device_graph" />
         <action
-            android:id="@+id/action_homeFragment_to_pairNewFragment"
-            app:destination="@id/pairNewFragment" />
-        <action
             android:id="@+id/action_homeFragment_to_appSettingsFragment"
             app:destination="@id/appSettingsFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_pairLandingFragment"
+            app:destination="@id/pairLandingFragment" />
     </fragment>
     <fragment
         android:id="@+id/pairNewFragment"
         android:name="com.nabto.edge.nabtoheatpumpdemo.PairNewFragment"
         android:label="@string/title_pair_new"
         tools:layout="@layout/fragment_pair_new" >
-        <action
-            android:id="@+id/action_pairNewFragment_to_pairDeviceFragment"
-            app:destination="@id/pairDeviceFragment" />
     </fragment>
     <fragment
         android:id="@+id/pairDeviceFragment"
@@ -46,9 +47,6 @@
             app:argType="string" />
         <argument android:name="password"
             app:argType="string" />
-        <deepLink
-            app:action="ACTION_VIEW"
-            app:uri="https://nabto.com/pairing_demo/{productId}/{deviceId}/{password}" />
     </fragment>
     <navigation android:id="@+id/device_graph"
         app:startDestination="@id/devicePageFragment">
@@ -65,4 +63,13 @@
         android:name="com.nabto.edge.nabtoheatpumpdemo.AppSettingsFragment"
         android:label="@string/title_app_settings"
         tools:layout="@layout/fragment_app_settings" />
+    <fragment
+        android:id="@+id/pairLandingFragment"
+        android:name="com.nabto.edge.nabtoheatpumpdemo.PairLandingFragment"
+        android:label="@string/title_pairing_landing"
+        tools:layout="@layout/fragment_pair_landing" >
+        <action
+            android:id="@+id/action_pairLandingFragment_to_pairNewFragment"
+            app:destination="@id/pairNewFragment" />
+    </fragment>
 </navigation>

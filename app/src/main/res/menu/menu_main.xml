@@ -19,6 +19,5 @@
         android:icon="@drawable/ic_baseline_settings_48"
         android:iconTint="@color/black"
         android:title="App Settings"
-        app:showAsAction="ifRoom"
-        />
+        app:showAsAction="ifRoom" />
 </menu>

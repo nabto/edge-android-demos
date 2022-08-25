@@ -18,6 +18,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import com.nabto.edge.client.Coap
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.ktx.awaitExecute
+import com.nabto.edge.iamutil.IamException
 import com.nabto.edge.iamutil.IamUser
 import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.awaitGetCurrentUser
@@ -88,6 +89,7 @@ enum class HeatPumpConnectionEvent {
     FAILED_INITIAL_CONNECT,
     FAILED_NOT_HEAT_PUMP,
     FAILED_TO_UPDATE,
+    FAILED_UNKNOWN,
     FAILED_NOT_PAIRED
 }
 
@@ -133,32 +135,42 @@ class HeatPumpViewModel(
 
                 updateLoopJob = viewModelScope.launch {
                     val iam = IamUtil.create()
-                    val isPaired = iam.isCurrentUserPaired(connectionManager.getConnection(handle))
-                    if (!isPaired) {
-                        Log.w(TAG, "User connected to device but is not paired!")
-                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_NOT_PAIRED)
-                        return@launch
+
+                    try {
+                        val isPaired =
+                            iam.isCurrentUserPaired(connectionManager.getConnection(handle))
+                        if (!isPaired) {
+                            Log.w(TAG, "User connected to device but is not paired!")
+                            _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_NOT_PAIRED)
+                            return@launch
+                        }
+
+                        val details = iam.getDeviceDetails(connectionManager.getConnection(handle))
+                        if (details.appName != "HeatPump") {
+                            Log.w(TAG, "The app name of the connected device is ${details.appName} instead of HeatPump!")
+                            _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_NOT_HEAT_PUMP)
+                            return@launch
+                        }
+
+                        val heatPumpState = getHeatPumpStateFromDevice()
+                        _clientState.postValue(heatPumpState)
+
+                        if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
+                            _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
+                        }
+                        _heatPumpConnState.postValue(HeatPumpConnectionState.CONNECTED)
+
+                        val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
+                        _currentUser.postValue(user)
+
+                        updateLoop()
+                    } catch (e: IamException) {
+                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_UNKNOWN)
+                    } catch (e: NabtoRuntimeException) {
+                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_UNKNOWN)
+                    } catch (e: CancellationException) {
+                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_UNKNOWN)
                     }
-
-                    val details = iam.getDeviceDetails(connectionManager.getConnection(handle))
-                    if (details.appName != "HeatPump") {
-                        Log.w(TAG, "The app name of the connected device is ${details.appName} instead of HeatPump!")
-                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_NOT_HEAT_PUMP)
-                        return@launch
-                    }
-
-                    val heatPumpState = getHeatPumpStateFromDevice()
-                    _clientState.postValue(heatPumpState)
-
-                    if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
-                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
-                    }
-                    _heatPumpConnState.postValue(HeatPumpConnectionState.CONNECTED)
-
-                    val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
-                    _currentUser.postValue(user)
-
-                    updateLoop()
                 }
             }
 
@@ -321,6 +333,7 @@ class HeatPumpViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        viewModelScope.cancel()
         connectionManager.releaseHandle(handle)
     }
 }
@@ -391,8 +404,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
             refresh()
         }
 
-        view.findViewById<TextView>(R.id.dp_info_name).text =
-            device.getDeviceNameOrElse(getString(R.string.unnamed_device))
         view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
         view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
         view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
@@ -443,7 +454,17 @@ class DevicePageFragment : Fragment(), MenuProvider {
     private fun onStateChanged(view: View, state: HeatPumpState) {
         if (isTouchingTemperatureSlider) return
         powerSwitchView.isChecked = state.power
-        targetSliderView.value = state.target.toFloat()
+        var target = state.target.toFloat()
+        val min = targetSliderView.valueFrom
+        val max = targetSliderView.valueTo
+        if (target > max) {
+            target = max
+            model.setTarget(target.toDouble())
+        } else if (target < min) {
+            target = min
+            model.setTarget(target.toDouble())
+        }
+        targetSliderView.value = target
         modeSpinnerView.setSelection(state.mode.ordinal)
     }
 
@@ -496,44 +517,33 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
             HeatPumpConnectionEvent.FAILED_RECONNECT -> {
                 swipeRefreshLayout.isRefreshing = false
-                //view.findViewById<TextView>(R.id.dp_lost_connection_text).text = "RECONNECT FAILED"
+                view.snack(getString(R.string.failed_reconnect))
             }
 
             HeatPumpConnectionEvent.FAILED_INITIAL_CONNECT -> {
-                Snackbar.make(
-                    view,
-                    getString(R.string.device_page_failed_to_connect),
-                    Snackbar.LENGTH_LONG
-                ).show()
+                view.snack(getString(R.string.device_page_failed_to_connect))
                 findNavController().popBackStack()
             }
 
             HeatPumpConnectionEvent.FAILED_NOT_HEAT_PUMP -> {
-                Snackbar.make(
-                    view,
-                    getString(R.string.device_page_not_heatpump),
-                    Snackbar.LENGTH_LONG
-                ).show()
+                view.snack(getString(R.string.device_page_not_heatpump))
                 findNavController().popBackStack()
             }
 
             HeatPumpConnectionEvent.FAILED_TO_UPDATE -> {
-                Snackbar.make(
-                    view,
-                    getString(R.string.device_page_failed_update),
-                    Snackbar.LENGTH_LONG
-                ).show()
+                view.snack(getString(R.string.device_page_failed_update))
             }
 
             HeatPumpConnectionEvent.FAILED_NOT_PAIRED -> {
-                Snackbar.make(
-                    view,
-                    getString(R.string.device_failed_not_paired),
-                    Snackbar.LENGTH_LONG
-                ).show()
+                view.snack(getString(R.string.device_failed_not_paired))
                 findNavController().popBackStack()
             }
-        }
+
+            HeatPumpConnectionEvent.FAILED_UNKNOWN -> {
+                view.snack(getString(R.string.device_failed_unknown))
+                findNavController().popBackStack()
+            }
+         }
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
