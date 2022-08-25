@@ -540,10 +540,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
                 findNavController().popBackStack()
             }
 
-            HeatPumpConnectionEvent.FAILED_UNKNOWN -> {
-                view.snack(getString(R.string.device_failed_unknown))
-                findNavController().popBackStack()
-            }
+            HeatPumpConnectionEvent.FAILED_UNKNOWN -> { }
          }
     }
 

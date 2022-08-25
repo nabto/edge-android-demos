@@ -30,8 +30,10 @@ class PairLandingFragment : Fragment() {
         val etPairingString = view.findViewById<EditText>(R.id.pair_landing_et_string)
         val pairButton = view.findViewById<Button>(R.id.pair_landing_pair_button)
         pairButton.setOnClickListener {
-            if (pattern.matches(etPairingString.text)) {
-                val match = pattern.matchEntire(etPairingString.text)
+            // remove all whitespace and check that the pairing string matches the pattern
+            val pairingString = etPairingString.text.filter { !it.isWhitespace() }
+            if (pattern.matches(pairingString)) {
+                val match = pattern.matchEntire(pairingString)
                 if (match != null) {
                     val productId = match.groups[1]?.value ?: ""
                     val deviceId = match.groups[2]?.value ?: ""

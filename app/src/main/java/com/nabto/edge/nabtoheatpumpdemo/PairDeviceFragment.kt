@@ -116,7 +116,11 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
         return getDeviceDetails(friendlyDeviceName)
     }
 
-    private fun pairAndUpdateDevice(username: String, friendlyName: String) {
+    suspend fun updateDisplayName(username: String, displayName: String) {
+        iam.awaitUpdateUserDisplayName(manager.getConnection(handle), username, displayName)
+    }
+
+    private fun pairAndUpdateDevice(username: String, friendlyName: String, displayName: String) {
         viewModelScope.launch {
             try {
                 val pairingDetails = getPairingDetails()
@@ -138,6 +142,7 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
                     pairLocalOpen(username, friendlyName)
                 }
 
+                updateDisplayName(username, displayName)
                 _pairingResult.postValue(PairingResult.Success(false, dev))
             } catch (e: IamException) {
                 // You could carry some extra information in PairingResult.Failed using the info in the exception
@@ -158,7 +163,7 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
         }
     }
 
-    fun initiatePairing(username: String, friendlyName: String) {
+    fun initiatePairing(username: String, friendlyName: String, displayName: String) {
         viewModelScope.launch {
             val device = Device(
                 productId = pairingData.productId,
@@ -169,7 +174,7 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
             handle = manager.requestConnection(device) { event, _ ->
                 when (event) {
                     NabtoConnectionEvent.CONNECTED -> {
-                        viewModelScope.launch { pairAndUpdateDevice(username, friendlyName) }
+                        viewModelScope.launch { pairAndUpdateDevice(username, friendlyName, displayName) }
                     }
                     NabtoConnectionEvent.DEVICE_DISCONNECTED -> {
                         _pairingResult.postValue(PairingResult.Failed)
@@ -215,6 +220,8 @@ class PairDeviceFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         model.pairingData = PairingData.unwrapBundle(arguments)
 
+        val button = view.findViewById<Button>(R.id.complete_pairing)
+
         model.pairingResult.observe(viewLifecycleOwner, Observer { result ->
             val stringIdentifier = when (result) {
                 is PairingResult.Success -> {
@@ -235,14 +242,12 @@ class PairDeviceFragment : Fragment() {
                 is PairingResult.Failed -> R.string.pair_device_failed
             }
 
-            Snackbar.make(
-                view,
-                getString(stringIdentifier),
-                Snackbar.LENGTH_LONG
-            ).show()
-
-            // @TODO: Only send the user back if they successfully paired.
-            findNavController().navigate(R.id.action_nav_return_home)
+            view.snack(getString(stringIdentifier))
+            when (result) {
+                is PairingResult.Success -> { findNavController().navigate(R.id.action_nav_return_home) }
+                is PairingResult.FailedUsernameExists -> { button.isEnabled = true }
+                else -> { findNavController().popBackStack() }
+            }
         })
 
         val etUsername = view.findViewById<EditText>(R.id.pair_device_username)
@@ -251,7 +256,8 @@ class PairDeviceFragment : Fragment() {
         val cleanedUsername = (repo.getDisplayName().value ?: "").filter { it.isLetterOrDigit() }.lowercase()
         etUsername.setText(cleanedUsername)
 
-        view.findViewById<Button>(R.id.complete_pairing).setOnClickListener { button ->
+        button.setOnClickListener { _ ->
+            clearFocusAndHideKeyboard()
             val username = etUsername.text.toString()
             val friendlyName = etFriendlyName.text.toString()
 
@@ -273,7 +279,7 @@ class PairDeviceFragment : Fragment() {
             }
 
             button.isEnabled = false
-            model.initiatePairing(username, etFriendlyName.text.toString())
+            model.initiatePairing(username, etFriendlyName.text.toString(), repo.getDisplayName().value ?: username)
         }
     }
 }
