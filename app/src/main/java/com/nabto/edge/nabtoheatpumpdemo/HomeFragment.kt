@@ -118,7 +118,11 @@ class HomeViewModel(
                                 HomeDeviceItemStatus.OFFLINE
                             }
                         }
-                        else -> HomeDeviceItemStatus.OFFLINE
+                        NabtoConnectionEvent.PAUSED -> HomeDeviceItemStatus.ONLINE
+                        NabtoConnectionEvent.UNPAUSED -> HomeDeviceItemStatus.ONLINE
+                        NabtoConnectionEvent.FAILED_TO_CONNECT -> HomeDeviceItemStatus.OFFLINE
+                        NabtoConnectionEvent.DEVICE_DISCONNECTED -> HomeDeviceItemStatus.OFFLINE
+                        NabtoConnectionEvent.CLOSED -> HomeDeviceItemStatus.OFFLINE
                     }
                     post()
                 }
@@ -173,6 +177,7 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
         holder.view.setOnClickListener {
             it.findFragment<HomeFragment>().onDeviceClick(dataSet[position].device)
         }
+        Log.i("ASDSD", dataSet[position].toString())
         val (color, icon) = when (dataSet[position].status) {
             HomeDeviceItemStatus.ONLINE -> R.color.green to R.drawable.ic_baseline_check_circle
             HomeDeviceItemStatus.UNPAIRED -> R.color.yellow to R.drawable.ic_baseline_lock
