@@ -314,7 +314,6 @@ class HeatPumpViewModel(
     }
 
     private suspend fun getHeatPumpStateFromDevice(): HeatPumpState {
-        // @TODO: We probably dont need invalidState
         val invalidState = HeatPumpState(HeatPumpMode.UNKNOWN, false, 0.0, 0.0, false)
         val state = safeCall(invalidState) {
             val coap = connectionManager.createCoap(handle, "GET", "/heat-pump")
@@ -393,8 +392,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
             temperatureView.text = getString(R.string.temperature_format, state.temperature)
         })
 
+        val targetTextView = view.findViewById<TextView>(R.id.dp_target_temperature)
+        targetTextView.text = getString(R.string.target_format, targetSliderView.value.roundToInt())
         targetSliderView.addOnChangeListener { slider, value, fromUser ->
-            view.findViewById<TextView>(R.id.dp_target_temperature).text = getString(R.string.target_format, value.roundToInt())
+            targetTextView.text = getString(R.string.target_format, value.roundToInt())
         }
 
         model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
