@@ -23,7 +23,9 @@ import com.nabto.edge.iamutil.ktx.awaitIsCurrentUserPaired
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 
-
+/**
+ * Enum to represent different connection states of devices in the home page list of devices.
+ */
 enum class HomeDeviceItemStatus {
     ONLINE,
     CONNECTING,
@@ -43,6 +45,10 @@ class HomeViewModelFactory(
     }
 }
 
+/**
+ * ViewModel that interacts with NabtoConnectionManager to manage a list of connections
+ * to devices on the device list in HomePageFragment.
+ */
 class HomeViewModel(
     private val database: DeviceDatabase,
     private val manager: NabtoConnectionManager
@@ -157,6 +163,9 @@ class HomeViewModel(
     }
 }
 
+/**
+ * RecyclerView Adapter for updating the views per item in the list.
+ */
 class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
     class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
         lateinit var device: Device
@@ -206,6 +215,9 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
 }
 
 
+/**
+ * Fragment for fragment_home.xml.
+ */
 class HomeFragment : Fragment(), MenuProvider {
     private val TAG = javaClass.simpleName
 

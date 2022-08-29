@@ -27,8 +27,9 @@ import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
 import kotlin.math.roundToInt
 
-// @TODO: Closing the app before the connection manages to close will not shut down the connection
-
+/**
+ * AppMode string enum class holds enums that represent the states that the thermostat can be in
+ */
 enum class AppMode(val string: String) {
     COOL("COOL"),
     HEAT("HEAT"),
@@ -36,6 +37,10 @@ enum class AppMode(val string: String) {
     DRY("DRY")
 }
 
+/**
+ * AppState is a dumb data class meant to hold the data that is received
+ * from a GET procedure to the COAP path that holds the app's state
+ */
 data class AppState(
     var mode: AppMode,
     var power: Boolean,
@@ -75,12 +80,20 @@ class DevicePageViewModelFactory(
     }
 }
 
+/**
+ * Represents different states that the DevicePageFragment can be in
+ * INITIAL_CONNECTING is used for when the user moves from HomeFragment -> DevicePageFragment
+ * where we initially display a loading spinner while a connection is being made.
+ */
 enum class AppConnectionState {
     INITIAL_CONNECTING,
     CONNECTED,
     DISCONNECTED
 }
 
+/**
+ * Represents different events that might happen while the user is interacting with the device
+ */
 enum class AppConnectionEvent {
     RECONNECTED,
     FAILED_RECONNECT,
@@ -91,46 +104,79 @@ enum class AppConnectionEvent {
     FAILED_NOT_PAIRED
 }
 
-data class CoapPath(val method: String, val path: String) {}
-
+/**
+ * Lifecycle-aware class that manages data for DevicePageFragment.
+ * This class is responsible for interacting with NabtoConnectionManager to do
+ * COAP calls for getting or setting device state as well as requesting and releasing
+ * connection handles from the manager.
+ */
 class DevicePageViewModel(
     device: Device,
     private val connectionManager: NabtoConnectionManager
 ) : ViewModel() {
     private val TAG = this.javaClass.simpleName
 
+    // COAP paths that the ViewModel will use for getting/setting data
+    data class CoapPath(val method: String, val path: String) {}
     private val powerCoap = CoapPath("POST", "/heat-pump/power")
     private val modeCoap = CoapPath("POST", "/heat-pump/mode")
     private val targetCoap = CoapPath("POST", "/heat-pump/target")
     private val appStateCoap = CoapPath("GET", "/heat-pump")
 
-    private val _serverState: MutableLiveData<AppState> = MutableLiveData()
-    val serverState: LiveData<AppState>
-        get() = _serverState
-
     private var lastClientUpdate = System.nanoTime()
+    private val _serverState: MutableLiveData<AppState> = MutableLiveData()
     private val _clientState = MutableLiveData<AppState>()
-    val clientState: LiveData<AppState>
-        get() = _clientState
-
     private val _connState: MutableLiveData<AppConnectionState> = MutableLiveData(AppConnectionState.INITIAL_CONNECTING)
-    val connectionState: LiveData<AppConnectionState>
-        get() = _connState.distinctUntilChanged()
-
     private val _connEvent: MutableLiveEvent<AppConnectionEvent> = MutableLiveEvent()
-    val connectionEvent: LiveEvent<AppConnectionEvent>
-        get() = _connEvent
-
     private val _currentUser: MutableLiveData<IamUser> = MutableLiveData()
-    val currentUser: LiveData<IamUser>
-        get() = _currentUser
 
     private var isPaused = false
     private var updateLoopJob: Job? = null
     private val handle = connectionManager.requestConnection(device) { event, _ -> onConnectionChanged(event) }
 
-    // How many times per second should we request a state update from the device?
+    // how many times per second should we request a state update from the device?
     private val updatesPerSecond = 10.0
+
+    /**
+     * serverState is a LiveData object that holds an AppState that was recently retrieved
+     * from the device. The contained AppState is not shown to the user directly but is
+     * merged with clientState whenever the user is not directly interacting with the UI.
+     */
+    val serverState: LiveData<AppState>
+        get() = _serverState
+
+    /**
+     * clientState is a LiveData object that holds the AppState data that the DevicePageFragment
+     * uses for updating UI. clientState is updated whenever the user interacts with the UI
+     * and is also updated from the serverState LiveData whenever the user is not interacting.
+     *
+     * This is to allow for the UI to represent the "latest" state of the device without
+     * impacting user experience by programmatically changing UI when the user is interacting.
+     */
+    val clientState: LiveData<AppState>
+        get() = _clientState
+
+    /**
+     * connectionState contains the current state of the connection that the DevicePageFragment
+     * uses for updating UI.
+     */
+    val connectionState: LiveData<AppConnectionState>
+        get() = _connState.distinctUntilChanged()
+
+    /**
+     * connectionEvent sends out an event when something happens to the connection.
+     * DevicePageFragment uses this to act correspondingly with the event in cases of
+     * connection being lost or other such error states.
+     */
+    val connectionEvent: LiveEvent<AppConnectionEvent>
+        get() = _connEvent
+
+    /**
+     * The user info of the currently connected user. DevicePageFragment can use this to
+     * represent information about the user in the UI.
+     */
+    val currentUser: LiveData<IamUser>
+        get() = _currentUser
 
     init {
         // We're already connected from the home page.
@@ -250,6 +296,11 @@ class DevicePageViewModel(
         }
     }
 
+    /**
+     * Try to reconnect a disconnected connection.
+     *
+     * If the connection is not disconnected, a RECONNECTED event will be sent out.
+     */
     fun tryReconnect() {
         if (_connState.value == AppConnectionState.DISCONNECTED) {
             connectionManager.reconnect(handle)
@@ -269,6 +320,9 @@ class DevicePageViewModel(
         }
     }
 
+    /**
+     * Set the power state on the device and update corresponding LiveData variables.
+     */
     fun setPower(toggled: Boolean) {
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
@@ -289,6 +343,9 @@ class DevicePageViewModel(
         }
     }
 
+    /**
+     * Set the mode on the device and update corresponding LiveData variables.
+     */
     fun setMode(mode: AppMode) {
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
@@ -309,6 +366,9 @@ class DevicePageViewModel(
         }
     }
 
+    /**
+     * Set the target temperature on the device and update corresponding LiveData variables.
+     */
     fun setTarget(target: Double) {
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
@@ -353,6 +413,13 @@ class DevicePageViewModel(
     }
 }
 
+/**
+ * Fragment for fragment_device_page.xml.
+ * Responsible for letting the user interact with their thermostat device.
+ *
+ * DevicePageFragment sets observers on LiveData received from DevicePageViewModel
+ * and receives AppConnectionEvent updates.
+ */
 class DevicePageFragment : Fragment(), MenuProvider {
     private val TAG = this.javaClass.simpleName
 

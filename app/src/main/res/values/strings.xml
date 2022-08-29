@@ -37,8 +37,6 @@
     <string name="device_page_incorrect_app">Failed to connect, device is not a thermostat.</string>
     <string name="device_page_failed_update">Failed updating thermostat info. You are likely using an incorrect version of thermostat software, contact your administrator.</string>
     <string name="device_failed_not_paired">Failed to connect, you are not paired with this device.</string>
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="title_app_settings">App Settings</string>
     <string name="app_settings_displayname">Fill in your display name here. Other users of shared devices can see this display name.</string>
     <string name="display_name">Display Name</string>

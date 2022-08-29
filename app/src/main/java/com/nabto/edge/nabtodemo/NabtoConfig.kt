@@ -1,5 +1,8 @@
 package com.nabto.edge.nabtodemo
 
+/**
+ * Config object that holds compile-time constants for configuring the App with.
+ */
 object NabtoConfig {
     // App name that is returned from GET /iam/pairing (https://docs.nabto.com/developer/api-reference/coap/iam/pairing.html)
     const val DEVICE_APP_NAME = "HeatPump"

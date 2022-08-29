@@ -16,6 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 
+/**
+ * AppSettingsConfirmationDialogFragment extends Android's DialogFragment to make a
+ * confirm/cancel dialog.
+ */
 class AppSettingsConfirmationDialogFragment(
     private val msg: String,
     private val onConfirm: () -> Unit
@@ -32,6 +36,11 @@ class AppSettingsConfirmationDialogFragment(
     }
 }
 
+/**
+ * AppSettingsFragment is the Android Fragment class for fragment_app_settings.xml
+ * The purpose of this Fragment is to display app-wide settings such as the user's
+ * display name and options for resetting private key or device database.
+ */
 class AppSettingsFragment : Fragment() {
     private val repo: NabtoRepository by inject()
     private val database: DeviceDatabase by inject()

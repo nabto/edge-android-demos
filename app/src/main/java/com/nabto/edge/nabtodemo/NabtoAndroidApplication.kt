@@ -17,6 +17,11 @@ import org.koin.core.context.startKoin
 import org.koin.dsl.module
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Interface for getting Nabto-relevant data such as the client's private key or the server key
+ *
+ * NOTE: You can also get the server key using NabtoConfig
+ */
 interface NabtoRepository {
     fun getClientPrivateKey(): String
     fun resetClientPrivateKey()
