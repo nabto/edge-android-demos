@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalSerializationApi::class)
 
-package com.nabto.edge.nabtoheatpumpdemo
+package com.nabto.edge.nabtodemo
 
 import android.os.Bundle
 import android.util.Log
@@ -13,7 +13,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.slider.Slider
-import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.nabto.edge.client.Coap
 import com.nabto.edge.client.NabtoRuntimeException
@@ -30,33 +29,33 @@ import kotlin.math.roundToInt
 
 // @TODO: Closing the app before the connection manages to close will not shut down the connection
 
-enum class HeatPumpMode(val string: String) {
+enum class AppMode(val string: String) {
     COOL("COOL"),
     HEAT("HEAT"),
     FAN("FAN"),
     DRY("DRY")
 }
 
-data class HeatPumpState(
-    var mode: HeatPumpMode,
+data class AppState(
+    var mode: AppMode,
     var power: Boolean,
     var target: Double,
     var temperature: Double,
     val valid: Boolean = true
 )
 
-internal fun decodeHeatPumpStateFromCBOR(cbor: ByteArray): HeatPumpState {
+internal fun decodeAppStateFromCBOR(cbor: ByteArray): AppState {
     @Serializable
-    data class HeatPumpCoapState(
+    data class AppCoapState(
         @Required @SerialName("Mode") val mode: String,
         @Required @SerialName("Power") val power: Boolean,
         @Required @SerialName("Target") val target: Double,
         @Required @SerialName("Temperature") val temperature: Double
     )
 
-    val state = Cbor.decodeFromByteArray<HeatPumpCoapState>(cbor)
-    return HeatPumpState(
-        HeatPumpMode.valueOf(state.mode),
+    val state = Cbor.decodeFromByteArray<AppCoapState>(cbor)
+    return AppState(
+        AppMode.valueOf(state.mode),
         state.power,
         state.target,
         state.temperature,
@@ -64,7 +63,7 @@ internal fun decodeHeatPumpStateFromCBOR(cbor: ByteArray): HeatPumpState {
     )
 }
 
-class HeatPumpViewModelFactory(
+class DevicePageViewModelFactory(
     private val device: Device,
     private val connectionManager: NabtoConnectionManager,
 ) : ViewModelProvider.Factory {
@@ -76,44 +75,51 @@ class HeatPumpViewModelFactory(
     }
 }
 
-enum class HeatPumpConnectionState {
+enum class AppConnectionState {
     INITIAL_CONNECTING,
     CONNECTED,
     DISCONNECTED
 }
 
-enum class HeatPumpConnectionEvent {
+enum class AppConnectionEvent {
     RECONNECTED,
     FAILED_RECONNECT,
     FAILED_INITIAL_CONNECT,
-    FAILED_NOT_HEAT_PUMP,
+    FAILED_INCORRECT_APP,
     FAILED_TO_UPDATE,
     FAILED_UNKNOWN,
     FAILED_NOT_PAIRED
 }
 
-class HeatPumpViewModel(
+data class CoapPath(val method: String, val path: String) {}
+
+class DevicePageViewModel(
     device: Device,
     private val connectionManager: NabtoConnectionManager
 ) : ViewModel() {
     private val TAG = this.javaClass.simpleName
 
-    private val _serverState: MutableLiveData<HeatPumpState> = MutableLiveData()
-    val serverState: LiveData<HeatPumpState>
+    private val powerCoap = CoapPath("POST", "/heat-pump/power")
+    private val modeCoap = CoapPath("POST", "/heat-pump/mode")
+    private val targetCoap = CoapPath("POST", "/heat-pump/target")
+    private val appStateCoap = CoapPath("GET", "/heat-pump")
+
+    private val _serverState: MutableLiveData<AppState> = MutableLiveData()
+    val serverState: LiveData<AppState>
         get() = _serverState
 
     private var lastClientUpdate = System.nanoTime()
-    private val _clientState = MutableLiveData<HeatPumpState>()
-    val clientState: LiveData<HeatPumpState>
+    private val _clientState = MutableLiveData<AppState>()
+    val clientState: LiveData<AppState>
         get() = _clientState
 
-    private val _heatPumpConnState: MutableLiveData<HeatPumpConnectionState> = MutableLiveData(HeatPumpConnectionState.INITIAL_CONNECTING)
-    val connectionState: LiveData<HeatPumpConnectionState>
-        get() = _heatPumpConnState.distinctUntilChanged()
+    private val _connState: MutableLiveData<AppConnectionState> = MutableLiveData(AppConnectionState.INITIAL_CONNECTING)
+    val connectionState: LiveData<AppConnectionState>
+        get() = _connState.distinctUntilChanged()
 
-    private val _heatPumpConnEvent: MutableLiveEvent<HeatPumpConnectionEvent> = MutableLiveEvent()
-    val connectionEvent: LiveEvent<HeatPumpConnectionEvent>
-        get() = _heatPumpConnEvent
+    private val _connEvent: MutableLiveEvent<AppConnectionEvent> = MutableLiveEvent()
+    val connectionEvent: LiveEvent<AppConnectionEvent>
+        get() = _connEvent
 
     private val _currentUser: MutableLiveData<IamUser> = MutableLiveData()
     val currentUser: LiveData<IamUser>
@@ -126,64 +132,75 @@ class HeatPumpViewModel(
     // How many times per second should we request a state update from the device?
     private val updatesPerSecond = 10.0
 
+    init {
+        // We're already connected from the home page.
+        if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
+            startup()
+        }
+    }
+
+    private fun startup() {
+        isPaused = false
+
+        updateLoopJob = viewModelScope.launch {
+            val iam = IamUtil.create()
+
+            try {
+                val isPaired =
+                    iam.isCurrentUserPaired(connectionManager.getConnection(handle))
+                if (!isPaired) {
+                    Log.w(TAG, "User connected to device but is not paired!")
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_NOT_PAIRED)
+                    return@launch
+                }
+
+                val details = iam.getDeviceDetails(connectionManager.getConnection(handle))
+                if (details.appName != NabtoConfig.DEVICE_APP_NAME) {
+                    Log.w(TAG, "The app name of the connected device is ${details.appName} instead of ${NabtoConfig.DEVICE_APP_NAME}!")
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_INCORRECT_APP)
+                    return@launch
+                }
+
+                val appState = getAppStateFromDevice()
+                _clientState.postValue(appState)
+
+                if (_connState.value == AppConnectionState.DISCONNECTED) {
+                    _connEvent.postEvent(AppConnectionEvent.RECONNECTED)
+                }
+                _connState.postValue(AppConnectionState.CONNECTED)
+
+                val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
+                _currentUser.postValue(user)
+
+                updateLoop()
+            } catch (e: IamException) {
+                _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
+            } catch (e: NabtoRuntimeException) {
+                _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
+            } catch (e: CancellationException) {
+                _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
+            }
+        }
+    }
+
     private fun onConnectionChanged(state: NabtoConnectionEvent) {
         Log.i(TAG, "Device connection state changed to: $state")
         when (state) {
             NabtoConnectionEvent.CONNECTED -> {
-                isPaused = false
-
-                updateLoopJob = viewModelScope.launch {
-                    val iam = IamUtil.create()
-
-                    try {
-                        val isPaired =
-                            iam.isCurrentUserPaired(connectionManager.getConnection(handle))
-                        if (!isPaired) {
-                            Log.w(TAG, "User connected to device but is not paired!")
-                            _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_NOT_PAIRED)
-                            return@launch
-                        }
-
-                        val details = iam.getDeviceDetails(connectionManager.getConnection(handle))
-                        if (details.appName != "HeatPump") {
-                            Log.w(TAG, "The app name of the connected device is ${details.appName} instead of HeatPump!")
-                            _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_NOT_HEAT_PUMP)
-                            return@launch
-                        }
-
-                        val heatPumpState = getHeatPumpStateFromDevice()
-                        _clientState.postValue(heatPumpState)
-
-                        if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
-                            _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
-                        }
-                        _heatPumpConnState.postValue(HeatPumpConnectionState.CONNECTED)
-
-                        val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
-                        _currentUser.postValue(user)
-
-                        updateLoop()
-                    } catch (e: IamException) {
-                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_UNKNOWN)
-                    } catch (e: NabtoRuntimeException) {
-                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_UNKNOWN)
-                    } catch (e: CancellationException) {
-                        _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_UNKNOWN)
-                    }
-                }
+                startup()
             }
 
             NabtoConnectionEvent.DEVICE_DISCONNECTED -> {
                 updateLoopJob?.cancel()
                 updateLoopJob = null
-                _heatPumpConnState.postValue(HeatPumpConnectionState.DISCONNECTED)
+                _connState.postValue(AppConnectionState.DISCONNECTED)
             }
 
             NabtoConnectionEvent.FAILED_TO_CONNECT -> {
-                if (_heatPumpConnState.value == HeatPumpConnectionState.INITIAL_CONNECTING) {
-                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_INITIAL_CONNECT)
+                if (_connState.value == AppConnectionState.INITIAL_CONNECTING) {
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_INITIAL_CONNECT)
                 } else {
-                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_RECONNECT)
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_RECONNECT)
                 }
             }
 
@@ -211,7 +228,7 @@ class HeatPumpViewModel(
                     delay(500)
                     continue
                 }
-                val state = getHeatPumpStateFromDevice()
+                val state = getAppStateFromDevice()
                 if (state.valid) {
                     _serverState.postValue(state)
                 }
@@ -234,10 +251,10 @@ class HeatPumpViewModel(
     }
 
     fun tryReconnect() {
-        if (_heatPumpConnState.value == HeatPumpConnectionState.DISCONNECTED) {
+        if (_connState.value == AppConnectionState.DISCONNECTED) {
             connectionManager.reconnect(handle)
         } else {
-            _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.RECONNECTED)
+            _connEvent.postEvent(AppConnectionEvent.RECONNECTED)
         }
     }
 
@@ -256,12 +273,12 @@ class HeatPumpViewModel(
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
             safeCall({}) {
-                val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/power")
+                val coap = connectionManager.createCoap(handle, powerCoap.method, powerCoap.path)
                 val cbor = Cbor.encodeToByteArray(toggled)
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
                 coap.awaitExecute()
                 if (coap.responseStatusCode != 204) {
-                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_TO_UPDATE)
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
                 }
             }
             _clientState.value?.let {
@@ -272,16 +289,16 @@ class HeatPumpViewModel(
         }
     }
 
-    fun setMode(mode: HeatPumpMode) {
+    fun setMode(mode: AppMode) {
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
             safeCall({}) {
-                val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/mode")
+                val coap = connectionManager.createCoap(handle, modeCoap.method, modeCoap.path)
                 val cbor = Cbor.encodeToByteArray(mode.string)
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
                 coap.awaitExecute()
                 if (coap.responseStatusCode != 204) {
-                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_TO_UPDATE)
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
                 }
             }
             _clientState.value?.let {
@@ -296,12 +313,12 @@ class HeatPumpViewModel(
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
             safeCall({}) {
-                val coap = connectionManager.createCoap(handle, "POST", "/heat-pump/target")
+                val coap = connectionManager.createCoap(handle, targetCoap.method, targetCoap.path)
                 val cbor = Cbor.encodeToByteArray(target)
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
                 coap.awaitExecute()
                 if (coap.responseStatusCode != 204) {
-                    _heatPumpConnEvent.postEvent(HeatPumpConnectionEvent.FAILED_TO_UPDATE)
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
                 }
             }
             _clientState.value?.let {
@@ -312,10 +329,10 @@ class HeatPumpViewModel(
         }
     }
 
-    private suspend fun getHeatPumpStateFromDevice(): HeatPumpState {
-        val invalidState = HeatPumpState(HeatPumpMode.COOL, false, 0.0, 0.0, false)
+    private suspend fun getAppStateFromDevice(): AppState {
+        val invalidState = AppState(AppMode.COOL, false, 0.0, 0.0, false)
         val state = safeCall(invalidState) {
-            val coap = connectionManager.createCoap(handle, "GET", "/heat-pump")
+            val coap = connectionManager.createCoap(handle, appStateCoap.method, appStateCoap.path)
             coap.awaitExecute()
             val data = coap.responsePayload
             val statusCode = coap.responseStatusCode
@@ -324,7 +341,7 @@ class HeatPumpViewModel(
                 return@safeCall invalidState
             }
 
-            return@safeCall decodeHeatPumpStateFromCBOR(data)
+            return@safeCall decodeAppStateFromCBOR(data)
         }
         return state
     }
@@ -339,9 +356,9 @@ class HeatPumpViewModel(
 class DevicePageFragment : Fragment(), MenuProvider {
     private val TAG = this.javaClass.simpleName
 
-    private val model: HeatPumpViewModel by navGraphViewModels(R.id.device_graph) {
+    private val model: DevicePageViewModel by navGraphViewModels(R.id.device_graph) {
         val connectionManager: NabtoConnectionManager by inject()
-        HeatPumpViewModelFactory(
+        DevicePageViewModelFactory(
             device,
             connectionManager
         )
@@ -427,8 +444,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
         modeSpinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                if (pos >= 0 && pos < HeatPumpMode.values().size) {
-                    val mode = HeatPumpMode.values()[pos]
+                if (pos >= 0 && pos < AppMode.values().size) {
+                    val mode = AppMode.values()[pos]
                     model.setMode(mode)
                 }
             }
@@ -453,7 +470,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
         model.tryReconnect()
     }
 
-    private fun onStateChanged(view: View, state: HeatPumpState) {
+    private fun onStateChanged(view: View, state: AppState) {
         if (isTouchingTemperatureSlider) return
         powerSwitchView.isChecked = state.power
         var target = state.target.toFloat()
@@ -470,7 +487,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
         modeSpinnerView.setSelection(state.mode.ordinal)
     }
 
-    private fun onConnectionStateChanged(view: View, state: HeatPumpConnectionState) {
+    private fun onConnectionStateChanged(view: View, state: AppConnectionState) {
         Log.i(TAG, "Connection state changed to $state")
 
         fun setViewsEnabled(enable: Boolean) {
@@ -481,13 +498,13 @@ class DevicePageFragment : Fragment(), MenuProvider {
         }
 
         when (state) {
-            HeatPumpConnectionState.INITIAL_CONNECTING -> {
+            AppConnectionState.INITIAL_CONNECTING -> {
                 swipeRefreshLayout.visibility = View.INVISIBLE
                 loadingSpinner.visibility = View.VISIBLE
                 setViewsEnabled(false)
             }
 
-            HeatPumpConnectionState.CONNECTED -> {
+            AppConnectionState.CONNECTED -> {
                 loadingSpinner.visibility = View.INVISIBLE
                 lostConnectionBar.visibility = View.GONE
                 swipeRefreshLayout.visibility = View.VISIBLE
@@ -499,7 +516,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
                     .translationY(0f)
             }
 
-            HeatPumpConnectionState.DISCONNECTED -> {
+            AppConnectionState.DISCONNECTED -> {
                 lostConnectionBar.visibility = View.VISIBLE
                 lostConnectionBar.animate()
                     .translationY(0f)
@@ -510,38 +527,38 @@ class DevicePageFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun onConnectionEvent(view: View, event: HeatPumpConnectionEvent) {
+    private fun onConnectionEvent(view: View, event: AppConnectionEvent) {
         Log.i(TAG, "Received connection event $event")
         when (event) {
-            HeatPumpConnectionEvent.RECONNECTED -> {
+            AppConnectionEvent.RECONNECTED -> {
                 swipeRefreshLayout.isRefreshing = false
             }
 
-            HeatPumpConnectionEvent.FAILED_RECONNECT -> {
+            AppConnectionEvent.FAILED_RECONNECT -> {
                 swipeRefreshLayout.isRefreshing = false
                 view.snack(getString(R.string.failed_reconnect))
             }
 
-            HeatPumpConnectionEvent.FAILED_INITIAL_CONNECT -> {
+            AppConnectionEvent.FAILED_INITIAL_CONNECT -> {
                 view.snack(getString(R.string.device_page_failed_to_connect))
                 findNavController().popBackStack()
             }
 
-            HeatPumpConnectionEvent.FAILED_NOT_HEAT_PUMP -> {
-                view.snack(getString(R.string.device_page_not_heatpump))
+            AppConnectionEvent.FAILED_INCORRECT_APP -> {
+                view.snack(getString(R.string.device_page_incorrect_app))
                 findNavController().popBackStack()
             }
 
-            HeatPumpConnectionEvent.FAILED_TO_UPDATE -> {
+            AppConnectionEvent.FAILED_TO_UPDATE -> {
                 view.snack(getString(R.string.device_page_failed_update))
             }
 
-            HeatPumpConnectionEvent.FAILED_NOT_PAIRED -> {
+            AppConnectionEvent.FAILED_NOT_PAIRED -> {
                 view.snack(getString(R.string.device_failed_not_paired))
                 findNavController().popBackStack()
             }
 
-            HeatPumpConnectionEvent.FAILED_UNKNOWN -> { }
+            AppConnectionEvent.FAILED_UNKNOWN -> { }
          }
     }
 

@@ -1,4 +1,4 @@
-package com.nabto.edge.nabtoheatpumpdemo
+package com.nabto.edge.nabtodemo
 
 import android.os.Bundle
 import android.util.Log
@@ -12,7 +12,6 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
-import com.google.android.material.snackbar.Snackbar
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.iamutil.DeviceDetails
 import com.nabto.edge.iamutil.IamError
@@ -59,7 +58,7 @@ private class PairDeviceViewModelFactory(
 
 private sealed class PairingResult {
     data class Success(val alreadyPaired: Boolean, val dev: Device) : PairingResult()
-    object FailedNotHeatPump : PairingResult()
+    object FailedIncorrectApp : PairingResult()
     object FailedUsernameExists : PairingResult()
     object Failed : PairingResult()
 }
@@ -124,8 +123,8 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
         viewModelScope.launch {
             try {
                 val pairingDetails = getPairingDetails()
-                if (pairingDetails.appName != "HeatPump") {
-                    _pairingResult.postValue(PairingResult.FailedNotHeatPump)
+                if (pairingDetails.appName != NabtoConfig.DEVICE_APP_NAME) {
+                    _pairingResult.postValue(PairingResult.FailedIncorrectApp)
                     return@launch
                 }
 
@@ -237,7 +236,7 @@ class PairDeviceFragment : Fragment() {
                     }
                 }
 
-                is PairingResult.FailedNotHeatPump -> R.string.pair_device_failed_not_heatpump
+                is PairingResult.FailedIncorrectApp -> R.string.pair_device_failed_incorrect_app
                 is PairingResult.FailedUsernameExists -> R.string.pair_device_failed_username_exists
                 is PairingResult.Failed -> R.string.pair_device_failed
             }

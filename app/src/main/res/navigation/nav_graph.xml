@@ -18,7 +18,7 @@
 
     <fragment
         android:id="@+id/homeFragment"
-        android:name="com.nabto.edge.nabtoheatpumpdemo.HomeFragment"
+        android:name="com.nabto.edge.nabtodemo.HomeFragment"
         android:label="@string/title_home"
         tools:layout="@layout/fragment_home" >
         <action
@@ -33,13 +33,13 @@
     </fragment>
     <fragment
         android:id="@+id/pairNewFragment"
-        android:name="com.nabto.edge.nabtoheatpumpdemo.PairNewFragment"
+        android:name="com.nabto.edge.nabtodemo.PairNewFragment"
         android:label="@string/title_pair_new"
         tools:layout="@layout/fragment_pair_new" >
     </fragment>
     <fragment
         android:id="@+id/pairDeviceFragment"
-        android:name="com.nabto.edge.nabtoheatpumpdemo.PairDeviceFragment"
+        android:name="com.nabto.edge.nabtodemo.PairDeviceFragment"
         android:label="Pair with {deviceId}">
         <argument android:name="productId"
             app:argType="string" />
@@ -52,7 +52,7 @@
         app:startDestination="@id/devicePageFragment">
         <fragment
             android:id="@+id/devicePageFragment"
-            android:name="com.nabto.edge.nabtoheatpumpdemo.DevicePageFragment"
+            android:name="com.nabto.edge.nabtodemo.DevicePageFragment"
             android:label="{title}"
             tools:layout="@layout/fragment_device_page">
             <argument android:name="title" />
@@ -60,12 +60,12 @@
     </navigation>
     <fragment
         android:id="@+id/appSettingsFragment"
-        android:name="com.nabto.edge.nabtoheatpumpdemo.AppSettingsFragment"
+        android:name="com.nabto.edge.nabtodemo.AppSettingsFragment"
         android:label="@string/title_app_settings"
         tools:layout="@layout/fragment_app_settings" />
     <fragment
         android:id="@+id/pairLandingFragment"
-        android:name="com.nabto.edge.nabtoheatpumpdemo.PairLandingFragment"
+        android:name="com.nabto.edge.nabtodemo.PairLandingFragment"
         android:label="@string/title_pairing_landing"
         tools:layout="@layout/fragment_pair_landing" >
         <action

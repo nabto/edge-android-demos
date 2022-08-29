@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Nabto Heatpump Demo"
+rootProject.name = "Nabto Android Demo"
 include ':app'

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nabto Heatpump Demo</string>
+    <string name="app_name">Nabto Android Demo</string>
     <string name="title_home">Home</string>
     <string name="title_pair_new">Pair new device</string>
     <string name="unnamed_device">Unnamed Device</string>
@@ -15,7 +15,7 @@
     <string name="home_empty_button">Pair new</string>
     <string name="pair_device_already_paired">Device has already been paired with.</string>
     <string name="pair_device_success">Successfully paired with device!</string>
-    <string name="pair_device_failed_not_heatpump">Failed to pair with device, it\'s not a heat pump!</string>
+    <string name="pair_device_failed_incorrect_app">Failed to pair with device, it\'s not a heat pump!</string>
     <string name="pair_device_failed">Failed to pair with device.</string>
     <string name="username">Username</string>
     <string name="friendly_device_name">Friendly Device Name</string>
@@ -24,7 +24,7 @@
     <string name="pair_device_failed_username_exists">Failed to pair, username already taken!</string>
     <string name="device_page_failed_to_connect">Failed to connect to device</string>
     <string name="device_page_lost_connection">LOST CONNECTION TO DEVICE</string>
-    <string name="device_page_heat_pump_settings">Heat pump settings</string>
+    <string name="device_page_app_settings">Heat pump settings</string>
     <string name="device_page_power_switch_label">Heat pump active</string>
     <string name="mode">Mode</string>
     <string name="device_page_device_information">Device information</string>
@@ -34,7 +34,7 @@
     <string name="product_id">Product ID</string>
     <string name="user_id">User ID</string>
     <string name="refresh">Refresh</string>
-    <string name="device_page_not_heatpump">Failed to connect, device is not a heat pump.</string>
+    <string name="device_page_incorrect_app">Failed to connect, device is not a heat pump.</string>
     <string name="device_page_failed_update">Failed updating heat pump. You are likely using an incorrect version of heat pump software, contact your administrator.</string>
     <string name="device_failed_not_paired">Failed to connect, you are not paired with this device.</string>
     <!-- TODO: Remove or change this placeholder text -->

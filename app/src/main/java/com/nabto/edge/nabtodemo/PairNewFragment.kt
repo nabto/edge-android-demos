@@ -1,28 +1,18 @@
-package com.nabto.edge.nabtoheatpumpdemo
+package com.nabto.edge.nabtodemo
 
 import android.os.Bundle
-import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.core.os.bundleOf
-import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.findFragment
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
-import com.nabto.edge.client.NabtoRuntimeException
-import com.nabto.edge.iamutil.IamException
-import com.nabto.edge.iamutil.IamUtil
 import kotlinx.coroutines.*
-import org.json.JSONObject
 import org.koin.android.ext.android.inject
 
 class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.ViewHolder>() {

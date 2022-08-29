@@ -1,16 +1,12 @@
-package com.nabto.edge.nabtoheatpumpdemo
+package com.nabto.edge.nabtodemo
 
 import android.app.Application
 import android.content.Context
-import android.content.SharedPreferences
-import android.net.ConnectivityManager
-import android.net.Network
 import android.provider.Settings
 import android.util.Log
 import androidx.lifecycle.*
 import androidx.room.Room
 import com.nabto.edge.client.*
-import com.nabto.edge.client.impl.MdnsResultScanner
 import com.nabto.edge.client.ktx.awaitConnect
 import kotlinx.coroutines.*
 import org.json.JSONObject
@@ -56,7 +52,7 @@ class NabtoDeviceScanner(nabtoClient: NabtoClient) {
                 else -> {}
             }
             _devices.postValue(ArrayList(deviceMap.values))
-        }, "heatpump")
+        }, NabtoConfig.MDNS_SUB_TYPE)
 
     }
 }
@@ -69,14 +65,14 @@ private class NabtoRepositoryImpl(
 ) : NabtoRepository {
     private val _displayName = MutableLiveData<String>()
     private val pref = context.getSharedPreferences(
-        context.getString(R.string.nabto_shared_preferences),
+        NabtoConfig.SHARED_PREFERENCES,
         Context.MODE_PRIVATE
     )
 
     init {
         run {
             // Store a client private key to be used for connections.
-            val key = context.getString(R.string.nabto_client_private_key_pref)
+            val key = NabtoConfig.PRIVATE_KEY_PREF
             if (!pref.contains(key)) {
                 val pk = nabtoClient.createPrivateKey()
                 with(pref.edit()) {
@@ -88,7 +84,7 @@ private class NabtoRepositoryImpl(
 
 
         run {
-            val key = context.getString(R.string.nabto_display_name_pref)
+            val key = NabtoConfig.DISPLAY_NAME_PREF
             if (!pref.contains(key)) {
                 val name = Settings.Secure.getString(context.contentResolver, "bluetooth_name");
                 with(pref.edit()) {
@@ -104,7 +100,7 @@ private class NabtoRepositoryImpl(
     }
 
     override fun getClientPrivateKey(): String {
-        val key = context.getString(R.string.nabto_client_private_key_pref)
+        val key = NabtoConfig.PRIVATE_KEY_PREF
         if (pref.contains(key)) {
             return pref.getString(key, null)!!
         } else {
@@ -114,7 +110,7 @@ private class NabtoRepositoryImpl(
     }
 
     override fun resetClientPrivateKey() {
-        val key = context.getString(R.string.nabto_client_private_key_pref)
+        val key = NabtoConfig.PRIVATE_KEY_PREF
         val pk = nabtoClient.createPrivateKey()
         with(pref.edit()) {
             putString(key, pk)
@@ -123,7 +119,7 @@ private class NabtoRepositoryImpl(
     }
 
     override fun getServerKey(): String {
-        return context.getString(R.string.nabto_server_key)
+        return NabtoConfig.SERVER_KEY
     }
 
     // @TODO: Let application scope be injected instead of having to go through NabtoRepository?
@@ -137,7 +133,7 @@ private class NabtoRepositoryImpl(
 
     override fun setDisplayName(displayName: String) {
         _displayName.postValue(displayName)
-        val key = context.getString(R.string.nabto_display_name_pref)
+        val key = NabtoConfig.DISPLAY_NAME_PREF
         with(pref.edit()) {
             putString(key, displayName)
             apply()
@@ -298,7 +294,7 @@ class NabtoConnectionManagerImpl(
 
     private fun requestConnectionInternal(device: Device, listeners: MutableList<ConnectionEventListener>): ConnectionHandle {
         val handle = ConnectionHandle(device.productId, device.deviceId)
-        if (connectionMap.contains(handle)) {
+        if (connectionMap.containsKey(handle)) {
             // there is already an existing connection, just return the handle as-is
             Log.i(TAG, "Requested connection for ${device.deviceId} but a connection already exists")
             listeners.forEach { subscribe(handle, it) }
@@ -442,7 +438,7 @@ private fun appModule(client: NabtoClient, scanner: NabtoDeviceScanner, scope: C
         }
     }
 
-class NabtoHeatPumpApplication : Application() {
+class NabtoAndroidApplication : Application() {
     private val nabtoClient: NabtoClient by lazy { NabtoClient.create(this) }
     private val scanner: NabtoDeviceScanner by lazy { NabtoDeviceScanner(nabtoClient) }
     private val applicationScope = CoroutineScope(SupervisorJob())
@@ -452,7 +448,7 @@ class NabtoHeatPumpApplication : Application() {
 
         startKoin {
             androidLogger()
-            androidContext(this@NabtoHeatPumpApplication)
+            androidContext(this@NabtoAndroidApplication)
             modules(appModule(nabtoClient, scanner, applicationScope))
         }
     }

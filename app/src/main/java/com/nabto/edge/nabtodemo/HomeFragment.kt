@@ -1,4 +1,4 @@
-package com.nabto.edge.nabtoheatpumpdemo
+package com.nabto.edge.nabtodemo
 
 import android.os.Bundle
 import android.util.Log
@@ -128,7 +128,6 @@ class HomeViewModel(
                 }
             }
         }
-
         post()
     }
 
@@ -136,6 +135,17 @@ class HomeViewModel(
         for ((_, handle) in connections) {
             manager.reconnect(handle)
         }
+    }
+
+    fun releaseAllExcept(dev: Device) {
+        val devKey = DeviceKey.fromDevice(dev)
+        for ((key, handle) in connections) {
+            if (key != devKey) {
+                manager.releaseHandle(handle)
+            }
+        }
+        connections.clear()
+        status.clear()
     }
 
     fun release() {
@@ -249,7 +259,7 @@ class HomeFragment : Fragment(), MenuProvider {
             val bundle = PairingData.makeBundle(device.productId, device.deviceId, "")
             findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
         } else {
-            model.release()
+            model.releaseAllExcept(device)
             val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
             val bundle = bundleOf("device" to device, "title" to title)
             findNavController().navigate(R.id.action_homeFragment_to_devicePageFragment, bundle)

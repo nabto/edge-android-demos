@@ -1,4 +1,4 @@
-package com.nabto.edge.nabtoheatpumpdemo
+package com.nabto.edge.nabtodemo
 
 import android.app.Activity
 import android.view.View

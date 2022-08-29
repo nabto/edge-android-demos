@@ -10,7 +10,7 @@ android {
     compileSdk = 32
 
     defaultConfig {
-        applicationId = "com.nabto.edge.nabtoheatpumpdemo"
+        applicationId = "com.nabto.edge.nabtodemo"
         minSdk = 26
         targetSdk = 32
         versionCode = 1
