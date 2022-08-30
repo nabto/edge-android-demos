@@ -18,16 +18,36 @@ import org.koin.dsl.module
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Interface for getting Nabto-relevant data such as the client's private key or the server key
+ * Interface for getting Nabto-relevant data.
  *
- * NOTE: You can also get the server key using NabtoConfig
+ * Upon first running the app a private key is created and stored in the shared preferences of
+ * the android phone. This private key can be retrieved with [getClientPrivateKey]
  */
 interface NabtoRepository {
+
+    /**
+     * Get the private key of the client that was created using NabtoClient.createPrivateKey.
+     */
     fun getClientPrivateKey(): String
+
+    /**
+     * Deletes the currently stored private key and generates a new one to replace it.
+     */
     fun resetClientPrivateKey()
-    fun getServerKey(): String
+
+    /**
+     * Returns a list of Nabto devices that have been discovered through mDNS
+     */
     fun getScannedDevices(): LiveData<List<Device>>
+
+    /**
+     * Returns an application-wide CoroutineScope
+     */
     fun getApplicationScope(): CoroutineScope
+
+    /**
+     * Returns the display name of the user as LiveData.
+     */
     fun getDisplayName(): LiveData<String>
     fun setDisplayName(displayName: String)
 }
@@ -118,10 +138,6 @@ private class NabtoRepositoryImpl(
         }
     }
 
-    override fun getServerKey(): String {
-        return NabtoConfig.SERVER_KEY
-    }
-
     // @TODO: Let application scope be injected instead of having to go through NabtoRepository?
     override fun getApplicationScope(): CoroutineScope {
         return scope
@@ -152,29 +168,34 @@ enum class NabtoConnectionState {
 }
 
 enum class NabtoConnectionEvent {
-    // the device is in the process of being connected to
+    /** the device is in the process of being connected to */
     CONNECTING,
 
-    // the device has been connected to, always follows a CONNECTING
+    /** the device has been connected to, always comes after [CONNECTING] */
     CONNECTED,
 
-    // the device has been disconnected for some reason
+    /** the device has been disconnected for some reason */
     DEVICE_DISCONNECTED,
 
-    // failed to connect to the device, always follows a CONNECTING
+    /** failed to connect to the device, always comes after [CONNECTING] */
     FAILED_TO_CONNECT,
 
-    // the connection is paused, it is still connected but the connection may close soon
-    // serves as a warning for subscribers to stop using the connection
+    /**
+     * the connection is paused, it is still connected but the connection may close soon
+     * serves as a warning for subscribers to stop using the connection
+     */
     PAUSED,
 
-    // the connection has gone from being paused to unpaused
-    // which means it will not close down and may still be used
-    // always follows a PAUSED event
+    /**
+     * the connection has gone from being paused to unpaused
+     * which means it will not close down and may still be used
+     * always comes after [PAUSED]
+     */
     UNPAUSED,
 
-    // the connection is closed and should not be used anymore
-    // CLOSED
+    /**
+     * the connection is closed and should not be used anymore
+     */
     CLOSED
 }
 
@@ -321,7 +342,7 @@ class NabtoConnectionManagerImpl(
         val options = JSONObject()
         options.put("ProductId", device.productId)
         options.put("DeviceId", device.deviceId)
-        options.put("ServerKey", repo.getServerKey())
+        options.put("ServerKey", NabtoConfig.SERVER_KEY)
         options.put("PrivateKey", repo.getClientPrivateKey())
         options.put("ServerConnectToken", device.SCT)
         options.put("KeepAliveInterval", 2000)

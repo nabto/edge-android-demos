@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.parcelize.Parcelize
 
 /**
- * Data class that holds information about a device. Everything except productId and deviceId
+ * Data class that holds information about a device. Everything except [productId] and [deviceId]
  * may be empty strings.
  *
  * @TODO: Maybe it would be better to make them nullable?
@@ -51,7 +51,7 @@ data class Device(
 }
 
 /**
- * DeviceDatabase holds a table of Devices represented by this class.
+ * [DeviceDatabase] holds a table of devices represented by this class.
  *
  * @property[productId]] product ID that the device belongs to
  * @property[deviceId] ID of the device
@@ -91,7 +91,7 @@ fun convertDeviceToEntry(dev: Device): DatabaseDevice {
 
 /**
  * Device Data Access Object
- * A DeviceDao can be retrieved from a DeviceDatabase and
+ * A DeviceDao can be retrieved from a [DeviceDatabase] and
  * can be used to interact with the database.
  */
 @Dao
@@ -123,7 +123,7 @@ fun DeviceDao.insertOrUpdate(device: Device) {
 }
 
 /**
- * DeviceDatabase is a Room database class. The app stores remembered devices in this database.
+ * Subclass of [RoomDatabase]. The app stores remembered devices in this database.
  * You can use Koin to inject a DeviceDatabase into e.g. a Fragment by doing
  *
  * val database: DeviceDatabase by inject()

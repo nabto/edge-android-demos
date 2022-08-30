@@ -9,6 +9,11 @@ import android.widget.Button
 import android.widget.EditText
 import androidx.navigation.fragment.findNavController
 
+/**
+ * Fragment for fragment_pair_landing.xml
+ * It displays an option to either go to the list of mDNS discovered devices ([PairNewFragment])
+ * or let the user input a pairing string.
+ */
 class PairLandingFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,

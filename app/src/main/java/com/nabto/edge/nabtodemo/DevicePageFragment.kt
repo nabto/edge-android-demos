@@ -28,7 +28,7 @@ import org.koin.android.ext.android.inject
 import kotlin.math.roundToInt
 
 /**
- * AppMode string enum class holds enums that represent the states that the thermostat can be in
+ * Enum that represent the states that the thermostat can be in
  */
 enum class AppMode(val string: String) {
     COOL("COOL"),
@@ -81,8 +81,8 @@ class DevicePageViewModelFactory(
 }
 
 /**
- * Represents different states that the DevicePageFragment can be in
- * INITIAL_CONNECTING is used for when the user moves from HomeFragment -> DevicePageFragment
+ * Represents different states that the [DevicePageFragment] can be in
+ * [INITIAL_CONNECTING] is used for when the user moves from [HomeFragment] to [DevicePageFragment]
  * where we initially display a loading spinner while a connection is being made.
  */
 enum class AppConnectionState {
@@ -105,8 +105,8 @@ enum class AppConnectionEvent {
 }
 
 /**
- * Lifecycle-aware class that manages data for DevicePageFragment.
- * This class is responsible for interacting with NabtoConnectionManager to do
+ * [ViewModel] that manages data for [DevicePageFragment].
+ * This class is responsible for interacting with [NabtoConnectionManager] to do
  * COAP calls for getting or setting device state as well as requesting and releasing
  * connection handles from the manager.
  */
@@ -417,8 +417,8 @@ class DevicePageViewModel(
  * Fragment for fragment_device_page.xml.
  * Responsible for letting the user interact with their thermostat device.
  *
- * DevicePageFragment sets observers on LiveData received from DevicePageViewModel
- * and receives AppConnectionEvent updates.
+ * [DevicePageFragment] sets observers on [LiveData] received from [DevicePageViewModel]
+ * and receives [AppConnectionEvent] updates.
  */
 class DevicePageFragment : Fragment(), MenuProvider {
     private val TAG = this.javaClass.simpleName

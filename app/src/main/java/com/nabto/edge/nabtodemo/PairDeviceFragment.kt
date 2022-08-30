@@ -7,7 +7,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
-import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.*
@@ -59,7 +58,7 @@ private sealed class PairingResult {
 }
 
 /**
- * PairDeviceViewModel's responsibility is to open a connection using NabtoConnectionManager
+ * PairDeviceViewModel's responsibility is to open a connection using [NabtoConnectionManager]
  * and then enact the pairing flow.
  */
 private class PairDeviceViewModel(

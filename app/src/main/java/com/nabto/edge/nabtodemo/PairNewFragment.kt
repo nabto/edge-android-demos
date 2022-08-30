@@ -49,6 +49,13 @@ class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.V
     override fun getItemCount() = dataSet.size
 }
 
+/**
+ * Fragment for fragment_pair_new.xml
+ * This fragment shows a list of devices on the local network that were found through mDNS
+ *
+ * @TODO: Should be renamed. PairNewFragment is a confusing name that was used at the start
+ * of the project when this was the only pairing-related fragment.
+ */
 class PairNewFragment : Fragment() {
     private val TAG = "PairNewFragment"
     private val database: DeviceDatabase by inject()

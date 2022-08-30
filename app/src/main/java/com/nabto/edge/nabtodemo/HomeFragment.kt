@@ -46,8 +46,8 @@ class HomeViewModelFactory(
 }
 
 /**
- * ViewModel that interacts with NabtoConnectionManager to manage a list of connections
- * to devices on the device list in HomePageFragment.
+ * ViewModel that interacts with [NabtoConnectionManager] to manage a list of connections
+ * to devices on the device list in [HomeFragment].
  */
 class HomeViewModel(
     private val database: DeviceDatabase,
