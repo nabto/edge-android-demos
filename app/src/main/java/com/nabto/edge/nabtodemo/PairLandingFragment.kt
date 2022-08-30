@@ -18,6 +18,27 @@ class PairLandingFragment : Fragment() {
         return inflater.inflate(R.layout.fragment_pair_landing, container, false)
     }
 
+    private fun parsePairingString(pairingString: String): Device {
+        val map = mutableMapOf<String, String>()
+        val withoutWhitespace = pairingString.filter { !it.isWhitespace() }
+        val pairs = withoutWhitespace.split(",")
+        for (pair in pairs) {
+            val parts = pair.split("=")
+            if (parts.size == 2) {
+                val key = parts[0]
+                val value = parts[1]
+                map[key] = value
+            }
+        }
+
+        return Device(
+            productId = map.getOrDefault("p", ""),
+            deviceId = map.getOrDefault("d", ""),
+            password = map.getOrDefault("pwd", ""),
+            SCT = map.getOrDefault("sct", "")
+        )
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val discoverButton = view.findViewById<Button>(R.id.pair_landing_discover_button)
@@ -25,21 +46,14 @@ class PairLandingFragment : Fragment() {
             findNavController().navigate(R.id.action_pairLandingFragment_to_pairNewFragment)
         }
 
-        val pattern = "pr=(.+),de=(.+)".toRegex()
         val etPairingString = view.findViewById<EditText>(R.id.pair_landing_et_string)
         val pairButton = view.findViewById<Button>(R.id.pair_landing_pair_button)
         pairButton.setOnClickListener {
-            // remove all whitespace and check that the pairing string matches the pattern
-            val pairingString = etPairingString.text.filter { !it.isWhitespace() }
-            if (pattern.matches(pairingString)) {
-                val match = pattern.matchEntire(pairingString)
-                if (match != null) {
-                    val productId = match.groups[1]?.value ?: ""
-                    val deviceId = match.groups[2]?.value ?: ""
-                    val bundle = Device(productId, deviceId).toBundle()
-                    findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
-                }
-
+            val device = parsePairingString(etPairingString.text.toString())
+            if (device.productId.isNotEmpty() && device.deviceId.isNotEmpty()) {
+                val bundle = device.toBundle()
+                bundle.putString("deviceId", device.deviceId)
+                findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
             } else {
                 etPairingString.error = "Pairing string does not match pattern."
             }
