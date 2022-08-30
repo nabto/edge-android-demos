@@ -24,6 +24,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 
+/**
+ * PairingData is passed to the PairDeviceFragment so that the fragment
+ * knows which device the user is trying to pair with.
+ */
 data class PairingData(
     val productId: String,
     val deviceId: String,
@@ -38,6 +42,13 @@ data class PairingData(
             )
         }
 
+        /**
+         * creates a Bundle that can be passed to the PairDeviceFragment when navigating the UI.
+         *
+         * @param[productId] the product id of the device.
+         * @param[deviceId] the device's id
+         * @param[password] optional argument for password pairing with device.
+         */
         fun makeBundle(productId: String, deviceId: String, password: String): Bundle {
             return bundleOf(
                 "productId" to productId,
@@ -57,20 +68,37 @@ private class PairDeviceViewModelFactory(
 }
 
 private sealed class PairingResult {
+    /**
+     * The device was either already paired or has just been paired.
+     */
     data class Success(val alreadyPaired: Boolean, val dev: Device) : PairingResult()
+
+    /**
+     * The device's app name does not match what was expected
+     */
     object FailedIncorrectApp : PairingResult()
+
+    /**
+     * The chosen username is already registered with the device.
+     */
     object FailedUsernameExists : PairingResult()
+
+    /**
+     * Pairing failed for some other reason.
+     */
     object Failed : PairingResult()
 }
 
+/**
+ * PairDeviceViewModel's responsibility is to open a connection using NabtoConnectionManager
+ * and then enact the pairing flow.
+ */
 private class PairDeviceViewModel(private val manager: NabtoConnectionManager) : ViewModel() {
     private val TAG = "PairDeviceViewModel"
     var pairingData = PairingData("", "", "")
     private var password = ""
     private lateinit var handle: ConnectionHandle
-    private val iam by lazy {
-        IamUtil.create()
-    }
+    private val iam = IamUtil.create()
 
     private val _pairingResult = MutableLiveData<PairingResult>()
     val pairingResult: LiveData<PairingResult>
@@ -110,7 +138,7 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
         return getDeviceDetails(friendlyDeviceName)
     }
 
-    suspend fun pairLocalPassword(desiredUsername: String, friendlyDeviceName: String): Device {
+    suspend fun pairPasswordOpen(desiredUsername: String, friendlyDeviceName: String): Device {
         iam.awaitPairPasswordOpen(manager.getConnection(handle), desiredUsername, password)
         return getDeviceDetails(friendlyDeviceName)
     }
@@ -136,7 +164,7 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
 
                 val dev = if (pairingData.password != "") {
                     passwordAuthenticate(pairingData.password)
-                    pairLocalPassword(username, friendlyName)
+                    pairPasswordOpen(username, friendlyName)
                 } else {
                     pairLocalOpen(username, friendlyName)
                 }
@@ -162,6 +190,13 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
         }
     }
 
+    /**
+     * Initiates pairing with device.
+     *
+     * @param[username] the user's chosen username.
+     * @param[friendlyName] the user's chosen name for the device, will be stored in database.
+     * @param[displayName] the display name that the device will keep for this user.
+     */
     fun initiatePairing(username: String, friendlyName: String, displayName: String) {
         viewModelScope.launch {
             val device = Device(
@@ -198,6 +233,13 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
     }
 }
 
+/**
+ * Fragment for fragment_device_page.xml
+ * When a user wants to pair with a specific device, they land on this fragment.
+ *
+ * When navigating to this fragment there must be a passed a bundle carrying PairingData
+ * to the fragment. This can be done with PairingData.makeBundle
+ */
 class PairDeviceFragment : Fragment() {
     private val TAG = "PairDeviceFragment"
     private val repo: NabtoRepository by inject()
