@@ -1,12 +1,56 @@
 package com.nabto.edge.nabtodemo
 
+import android.os.Bundle
 import android.os.Parcelable
+import androidx.core.os.bundleOf
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.parcelize.Parcelize
 
 /**
- * Data class that holds information about a device.
+ * Data class that holds information about a device. Everything except productId and deviceId
+ * may be empty strings.
+ *
+ * @TODO: Maybe it would be better to make them nullable?
+ */
+@Parcelize
+data class Device(
+    val productId: String,
+    val deviceId: String,
+    val SCT: String = "",
+    val appName: String = "",
+    val friendlyName: String = "",
+    val password: String = ""
+): Parcelable {
+    override fun equals(other: Any?): Boolean {
+        return (other is Device) &&
+                other.productId == this.productId &&
+                other.deviceId == this.deviceId
+    }
+
+    override fun hashCode(): Int {
+        var result = productId.hashCode()
+        result = 31 * result + deviceId.hashCode()
+        return result
+    }
+
+    fun getDeviceNameOrElse(default: String = ""): String {
+        return friendlyName.ifEmpty { appName.ifEmpty { default } }
+    }
+
+    fun toBundle(): Bundle {
+        return bundleOf("device" to this)
+    }
+
+    companion object {
+        fun fromBundle(data: Bundle?): Device {
+            return data?.get("device") as Device
+        }
+    }
+}
+
+/**
  * DeviceDatabase holds a table of Devices represented by this class.
  *
  * @property[productId]] product ID that the device belongs to
@@ -16,17 +60,33 @@ import kotlinx.parcelize.Parcelize
  * @property[friendlyName] a friendly name that the user can give to the device.
  */
 @Entity(tableName = "devices", primaryKeys = ["productId", "deviceId"])
-@Parcelize
-data class Device(
+data class DatabaseDevice(
     val productId: String,
     val deviceId: String,
     val SCT: String,
     val appName: String,
     val friendlyName: String
-) : Parcelable {
-    fun getDeviceNameOrElse(default: String = ""): String {
-        return friendlyName.ifEmpty { appName.ifEmpty { default } }
-    }
+)
+
+fun convertEntryToDevice(entry: DatabaseDevice): Device {
+    return Device(
+        productId = entry.productId,
+        deviceId = entry.deviceId,
+        SCT = entry.SCT,
+        appName =  entry.appName,
+        friendlyName = entry.friendlyName,
+        password = ""
+    )
+}
+
+fun convertDeviceToEntry(dev: Device): DatabaseDevice {
+    return DatabaseDevice(
+        productId = dev.productId,
+        deviceId = dev.deviceId,
+        SCT = dev.SCT,
+        appName = dev.appName,
+        friendlyName = dev.friendlyName
+    )
 }
 
 /**
@@ -37,22 +97,29 @@ data class Device(
 @Dao
 interface DeviceDao {
     @Query("SELECT * FROM devices")
-    fun getAll(): Flow<List<Device>>
+    fun _getAll(): Flow<List<DatabaseDevice>>
 
     @Query("SELECT EXISTS(SELECT * FROM devices WHERE productId = :productId AND productId = :deviceId)")
     fun exists(productId: String, deviceId: String): Boolean
 
-    @Update
-    fun update(device: Device)
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertOrUpdate(device: Device)
-
-    @Delete
-    fun delete(device: Device)
+    fun _insertOrUpdate(device: DatabaseDevice)
 
     @Query("DELETE FROM devices")
     fun deleteAll()
+}
+
+fun DeviceDao.getAll(): Flow<List<Device>> {
+    val flow = _getAll()
+    return flow.map {
+        it.map {
+            convertEntryToDevice(it)
+        }
+    }
+}
+
+fun DeviceDao.insertOrUpdate(device: Device) {
+    _insertOrUpdate(convertDeviceToEntry(device))
 }
 
 /**
@@ -61,7 +128,7 @@ interface DeviceDao {
  *
  * val database: DeviceDatabase by inject()
  */
-@Database(entities = [Device::class], version = 1)
+@Database(entities = [DatabaseDevice::class], version = 1)
 abstract class DeviceDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao
 }

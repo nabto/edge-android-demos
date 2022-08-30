@@ -17,14 +17,14 @@ import org.koin.android.ext.android.inject
 
 class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.ViewHolder>() {
     class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
-        lateinit var device: MdnsDeviceInfo
+        lateinit var device: Device
         val title: TextView = view.findViewById(R.id.home_device_item_title)
         val status: TextView = view.findViewById(R.id.home_device_item_subtitle)
     }
 
-    private var dataSet: List<MdnsDeviceInfo> = listOf()
+    private var dataSet: List<Device> = listOf()
 
-    fun submitDeviceList(devices: List<MdnsDeviceInfo>) {
+    fun submitDeviceList(devices: List<Device>) {
         dataSet = devices
         notifyDataSetChanged()
     }
@@ -82,9 +82,8 @@ class PairNewFragment : Fragment() {
         }
     }
 
-    fun onDeviceClick(mdnsDevice: MdnsDeviceInfo) {
+    fun onDeviceClick(mdnsDevice: Device) {
         lifecycleScope.launch {
-            // @TODO: This alreadyPaired business doesn't seem to work...?
             val alreadyPaired = withContext(Dispatchers.IO) {
                 val dao = database.deviceDao()
                 dao.exists(mdnsDevice.productId, mdnsDevice.deviceId)
@@ -92,7 +91,7 @@ class PairNewFragment : Fragment() {
             if (alreadyPaired) {
                 Snackbar.make(requireView(), getString(R.string.pair_device_already_paired), Snackbar.LENGTH_LONG).show()
             } else {
-                val bundle = PairingData.makeBundle(mdnsDevice.productId, mdnsDevice.deviceId, "")
+                val bundle = mdnsDevice.toBundle()
                 findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
             }
         }

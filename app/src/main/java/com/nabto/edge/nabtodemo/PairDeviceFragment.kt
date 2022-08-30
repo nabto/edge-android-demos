@@ -24,46 +24,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 
-/**
- * PairingData is passed to the PairDeviceFragment so that the fragment
- * knows which device the user is trying to pair with.
- */
-data class PairingData(
-    val productId: String,
-    val deviceId: String,
-    val password: String
-) {
-    companion object {
-        fun unwrapBundle(data: Bundle?): PairingData {
-            return PairingData(
-                productId = data?.getString("productId") ?: "",
-                deviceId = data?.getString("deviceId") ?: "",
-                password = data?.getString("password") ?: ""
-            )
-        }
-
-        /**
-         * creates a Bundle that can be passed to the PairDeviceFragment when navigating the UI.
-         *
-         * @param[productId] the product id of the device.
-         * @param[deviceId] the device's id
-         * @param[password] optional argument for password pairing with device.
-         */
-        fun makeBundle(productId: String, deviceId: String, password: String): Bundle {
-            return bundleOf(
-                "productId" to productId,
-                "deviceId" to deviceId,
-                "password" to password
-            )
-        }
-    }
-}
-
 private class PairDeviceViewModelFactory(
-    private val manager: NabtoConnectionManager
+    private val manager: NabtoConnectionManager,
+    private val device: Device
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return modelClass.getConstructor(NabtoConnectionManager::class.java).newInstance(manager)
+        return modelClass.getConstructor(
+            NabtoConnectionManager::class.java,
+            Device::class.java
+        ).newInstance(manager, device)
     }
 }
 
@@ -93,9 +62,11 @@ private sealed class PairingResult {
  * PairDeviceViewModel's responsibility is to open a connection using NabtoConnectionManager
  * and then enact the pairing flow.
  */
-private class PairDeviceViewModel(private val manager: NabtoConnectionManager) : ViewModel() {
+private class PairDeviceViewModel(
+    private val manager: NabtoConnectionManager,
+    private val device: Device
+    ) : ViewModel() {
     private val TAG = "PairDeviceViewModel"
-    var pairingData = PairingData("", "", "")
     private var password = ""
     private lateinit var handle: ConnectionHandle
     private val iam = IamUtil.create()
@@ -124,12 +95,12 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
         val connection = manager.getConnection(handle)
         val details = iam.awaitGetDeviceDetails(connection)
         val user = iam.awaitGetCurrentUser(connection)
-        return Device(
-            details.productId,
-            details.deviceId,
-            user.sct,
-            details.appName ?: "",
-            friendlyDeviceName
+        return device.copy(
+            productId = details.productId,
+            deviceId = details.deviceId,
+            SCT = user.sct,
+            appName = details.appName ?: "",
+            friendlyName = friendlyDeviceName
         )
     }
 
@@ -162,8 +133,8 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
                     return@launch
                 }
 
-                val dev = if (pairingData.password != "") {
-                    passwordAuthenticate(pairingData.password)
+                val dev = if (device.password != "") {
+                    passwordAuthenticate(device.password)
                     pairPasswordOpen(username, friendlyName)
                 } else {
                     pairLocalOpen(username, friendlyName)
@@ -199,12 +170,6 @@ private class PairDeviceViewModel(private val manager: NabtoConnectionManager) :
      */
     fun initiatePairing(username: String, friendlyName: String, displayName: String) {
         viewModelScope.launch {
-            val device = Device(
-                productId = pairingData.productId,
-                deviceId = pairingData.deviceId,
-                "", "", ""
-            )
-
             handle = manager.requestConnection(device) { event, _ ->
                 when (event) {
                     NabtoConnectionEvent.CONNECTED -> {
@@ -246,7 +211,7 @@ class PairDeviceFragment : Fragment() {
     private val database: DeviceDatabase by inject()
     private val manager: NabtoConnectionManager by inject()
     private val model: PairDeviceViewModel by viewModels {
-        PairDeviceViewModelFactory(manager)
+        PairDeviceViewModelFactory(manager, Device.fromBundle(requireArguments()))
     }
 
     override fun onCreateView(
@@ -259,7 +224,6 @@ class PairDeviceFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        model.pairingData = PairingData.unwrapBundle(arguments)
 
         val button = view.findViewById<Button>(R.id.complete_pairing)
 

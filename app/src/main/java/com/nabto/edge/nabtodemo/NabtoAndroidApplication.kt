@@ -26,21 +26,16 @@ interface NabtoRepository {
     fun getClientPrivateKey(): String
     fun resetClientPrivateKey()
     fun getServerKey(): String
-    fun getScannedDevices(): LiveData<List<MdnsDeviceInfo>>
+    fun getScannedDevices(): LiveData<List<Device>>
     fun getApplicationScope(): CoroutineScope
     fun getDisplayName(): LiveData<String>
     fun setDisplayName(displayName: String)
 }
 
-data class MdnsDeviceInfo(
-    val productId: String,
-    val deviceId: String
-)
-
 class NabtoDeviceScanner(nabtoClient: NabtoClient) {
-    private val deviceMap = HashMap<String, MdnsDeviceInfo>()
-    private val _devices: MutableLiveData<List<MdnsDeviceInfo>> = MutableLiveData()
-    val devices: LiveData<List<MdnsDeviceInfo>>
+    private val deviceMap = HashMap<String, Device>()
+    private val _devices: MutableLiveData<List<Device>> = MutableLiveData()
+    val devices: LiveData<List<Device>>
         get() = _devices
 
     init {
@@ -49,7 +44,7 @@ class NabtoDeviceScanner(nabtoClient: NabtoClient) {
                 MdnsResult.Action.ADD,
                 MdnsResult.Action.UPDATE -> {
                     deviceMap[result.serviceInstanceName] =
-                        MdnsDeviceInfo(result.productId, result.deviceId)
+                        Device(result.productId, result.deviceId)
                 }
                 MdnsResult.Action.REMOVE -> {
                     deviceMap.remove(result.serviceInstanceName)
@@ -145,7 +140,7 @@ private class NabtoRepositoryImpl(
         }
     }
 
-    override fun getScannedDevices(): LiveData<List<MdnsDeviceInfo>> {
+    override fun getScannedDevices(): LiveData<List<Device>> {
         return scanner.devices
     }
 }

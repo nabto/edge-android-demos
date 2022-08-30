@@ -36,7 +36,7 @@ class PairLandingFragment : Fragment() {
                 if (match != null) {
                     val productId = match.groups[1]?.value ?: ""
                     val deviceId = match.groups[2]?.value ?: ""
-                    val bundle = PairingData.makeBundle(productId, deviceId, "")
+                    val bundle = Device(productId, deviceId).toBundle()
                     findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
                 }
 

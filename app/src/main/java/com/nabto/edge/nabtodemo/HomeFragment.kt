@@ -60,23 +60,12 @@ class HomeViewModel(
         val status: HomeDeviceItemStatus
     )
 
-    data class DeviceKey(
-        val productId: String,
-        val deviceId: String
-    ) {
-        companion object {
-            fun fromDevice(dev: Device): DeviceKey {
-                return DeviceKey(dev.productId, dev.deviceId)
-            }
-        }
-    }
-
     private val _deviceList = MutableLiveData<List<HomeDeviceItem>>()
     val deviceList: LiveData<List<HomeDeviceItem>>
         get() = _deviceList
 
-    private val connections = mutableMapOf<DeviceKey, ConnectionHandle>()
-    private val status = mutableMapOf<DeviceKey, HomeDeviceItemStatus>()
+    private val connections = mutableMapOf<Device, ConnectionHandle>()
+    private val status = mutableMapOf<Device, HomeDeviceItemStatus>()
 
     private var devices: List<Device> = listOf()
 
@@ -90,22 +79,20 @@ class HomeViewModel(
     }
 
     fun getStatus(dev: Device): HomeDeviceItemStatus {
-        val key = DeviceKey.fromDevice(dev)
-        return status.getOrDefault(key, HomeDeviceItemStatus.OFFLINE)
+        return status.getOrDefault(dev, HomeDeviceItemStatus.OFFLINE)
     }
 
     fun sync() {
         fun post() {
             val list = devices.map {
-                HomeDeviceItem(it, status.getOrDefault(DeviceKey.fromDevice(it), HomeDeviceItemStatus.OFFLINE))
+                HomeDeviceItem(it, status.getOrDefault(it, HomeDeviceItemStatus.OFFLINE))
             }
             _deviceList.postValue(list)
         }
 
-        for (dev in devices) {
-            val key = DeviceKey.fromDevice(dev)
+        for (key in devices) {
             status[key] = status[key] ?: HomeDeviceItemStatus.OFFLINE
-            connections[key] = connections[key] ?: manager.requestConnection(dev) { event, handle ->
+            connections[key] = connections[key] ?: manager.requestConnection(key) { event, handle ->
                 viewModelScope.launch {
                     status[key] = when (event) {
                         NabtoConnectionEvent.CONNECTING -> HomeDeviceItemStatus.CONNECTING
@@ -144,9 +131,8 @@ class HomeViewModel(
     }
 
     fun releaseAllExcept(dev: Device) {
-        val devKey = DeviceKey.fromDevice(dev)
         for ((key, handle) in connections) {
-            if (key != devKey) {
+            if (key != dev) {
                 manager.releaseHandle(handle)
             }
         }
@@ -268,8 +254,7 @@ class HomeFragment : Fragment(), MenuProvider {
     fun onDeviceClick(device: Device) {
         if (model.getStatus(device) == HomeDeviceItemStatus.UNPAIRED) {
             model.release()
-            val bundle = PairingData.makeBundle(device.productId, device.deviceId, "")
-            findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
+            findNavController().navigate(R.id.action_nav_pairDeviceFragment, device.toBundle())
         } else {
             model.releaseAllExcept(device)
             val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
