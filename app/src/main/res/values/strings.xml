@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nabto Android Demo</string>
+    <string name="app_name">Nabto Thermostat</string>
     <string name="title_home">Home</string>
     <string name="title_pair_new">Pair new device</string>
     <string name="unnamed_device">Unnamed Device</string>
