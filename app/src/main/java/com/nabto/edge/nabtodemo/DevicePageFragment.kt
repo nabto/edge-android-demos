@@ -195,14 +195,14 @@ class DevicePageViewModel(
                 val isPaired =
                     iam.isCurrentUserPaired(connectionManager.getConnection(handle))
                 if (!isPaired) {
-                    Log.w(TAG, "User connected to device but is not paired!")
+                    Log.i(TAG, "User connected to device but is not paired!")
                     _connEvent.postEvent(AppConnectionEvent.FAILED_NOT_PAIRED)
                     return@launch
                 }
 
                 val details = iam.getDeviceDetails(connectionManager.getConnection(handle))
                 if (details.appName != NabtoConfig.DEVICE_APP_NAME) {
-                    Log.w(TAG, "The app name of the connected device is ${details.appName} instead of ${NabtoConfig.DEVICE_APP_NAME}!")
+                    Log.i(TAG, "The app name of the connected device is ${details.appName} instead of ${NabtoConfig.DEVICE_APP_NAME}!")
                     _connEvent.postEvent(AppConnectionEvent.FAILED_INCORRECT_APP)
                     return@launch
                 }

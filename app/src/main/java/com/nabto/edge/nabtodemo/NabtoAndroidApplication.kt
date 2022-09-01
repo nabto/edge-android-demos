@@ -297,7 +297,7 @@ class NabtoConnectionManagerImpl(
                     it.connection.awaitConnect()
                 } catch (e: Exception) {
                     if (e is NabtoRuntimeException || e is NabtoNoChannelsException) {
-                        Log.w(TAG, "Failed to connect, $e")
+                        Log.i(TAG, "Failed to connect, $e")
                         withContext(Dispatchers.Main) {
                             publish(handle, NabtoConnectionEvent.FAILED_TO_CONNECT)
                         }
