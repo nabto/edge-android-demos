@@ -118,10 +118,10 @@ class DevicePageViewModel(
 
     // COAP paths that the ViewModel will use for getting/setting data
     data class CoapPath(val method: String, val path: String) {}
-    private val powerCoap = CoapPath("POST", "/heat-pump/power")
-    private val modeCoap = CoapPath("POST", "/heat-pump/mode")
-    private val targetCoap = CoapPath("POST", "/heat-pump/target")
-    private val appStateCoap = CoapPath("GET", "/heat-pump")
+    private val powerCoap = CoapPath("POST", "/thermostat/power")
+    private val modeCoap = CoapPath("POST", "/thermostat/mode")
+    private val targetCoap = CoapPath("POST", "/thermostat/target")
+    private val appStateCoap = CoapPath("GET", "/thermostat")
 
     private var lastClientUpdate = System.nanoTime()
     private val _serverState: MutableLiveData<AppState> = MutableLiveData()
