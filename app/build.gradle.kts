@@ -60,7 +60,6 @@ dependencies {
     implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.5.1")
     implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.5.1")
     implementation ("com.google.android.material:material:1.6.1")
-    implementation ("com.google.zxing:core:3.5.0")
     implementation ("com.google.android.gms:play-services-vision:20.1.3")
 
     // Kotlin dependencies
