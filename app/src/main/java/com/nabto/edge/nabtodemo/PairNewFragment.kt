@@ -99,6 +99,7 @@ class PairNewFragment : Fragment() {
                 Snackbar.make(requireView(), getString(R.string.pair_device_already_paired), Snackbar.LENGTH_LONG).show()
             } else {
                 val bundle = mdnsDevice.toBundle()
+                bundle.putString("deviceId", mdnsDevice.deviceId)
                 findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
             }
         }

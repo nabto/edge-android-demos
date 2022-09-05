@@ -254,11 +254,13 @@ class HomeFragment : Fragment(), MenuProvider {
     fun onDeviceClick(device: Device) {
         if (model.getStatus(device) == HomeDeviceItemStatus.UNPAIRED) {
             model.release()
-            findNavController().navigate(R.id.action_nav_pairDeviceFragment, device.toBundle())
+            val bundle = device.toBundle()
+            bundle.putString("deviceId", device.deviceId)
+            findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
         } else {
             model.releaseAllExcept(device)
             val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
-            val bundle = bundleOf("device" to device, "title" to title)
+            val bundle = bundleOf("device" to device, "title" to title, "deviceId" to device.deviceId)
             findNavController().navigate(R.id.action_homeFragment_to_devicePageFragment, bundle)
         }
     }
