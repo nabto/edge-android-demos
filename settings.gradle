@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Nabto Thermostat"
+rootProject.name = "Nabto Edge Thermostat"
 include ':app'

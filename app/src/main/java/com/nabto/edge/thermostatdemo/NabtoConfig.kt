@@ -1,4 +1,4 @@
-package com.nabto.edge.nabtodemo
+package com.nabto.edge.thermostatdemo
 
 /**
  * Config object that holds compile-time constants for configuring the App with.
@@ -11,7 +11,7 @@ object NabtoConfig {
     const val MDNS_SUB_TYPE = "thermostat"
 
     /** Shared preferences file where e.g. client's private key and display name is stored */
-    const val SHARED_PREFERENCES = "com.nabto.edge.nabtodemo.nabto_shared_preferences"
+    const val SHARED_PREFERENCES = "com.nabto.edge.thermostatdemo.nabto_shared_preferences"
 
     // Shared preferences keys
     const val PRIVATE_KEY_PREF = "client_private_key"

@@ -10,7 +10,7 @@ android {
     compileSdk = 32
 
     defaultConfig {
-        applicationId = "com.nabto.edge.nabtodemo"
+        applicationId = "com.nabto.edge.thermostatdemo"
         minSdk = 26
         targetSdk = 32
         versionCode = 1

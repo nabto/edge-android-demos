@@ -1,4 +1,4 @@
-package com.nabto.edge.nabtodemo
+package com.nabto.edge.thermostatdemo
 
 import android.os.Bundle
 import android.os.Parcelable
