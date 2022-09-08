@@ -12,61 +12,20 @@ import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.material.slider.Slider
-import com.google.android.material.switchmaterial.SwitchMaterial
-import com.nabto.edge.client.Coap
+import com.google.android.exoplayer2.DefaultLoadControl
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.source.rtsp.RtspMediaSource
+import com.google.android.exoplayer2.ui.StyledPlayerView
 import com.nabto.edge.client.NabtoRuntimeException
-import com.nabto.edge.client.ktx.awaitExecute
+import com.nabto.edge.client.TcpTunnel
 import com.nabto.edge.iamutil.IamException
 import com.nabto.edge.iamutil.IamUser
 import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.awaitGetCurrentUser
 import kotlinx.coroutines.*
 import kotlinx.serialization.*
-import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
-import kotlin.math.roundToInt
-
-/**
- * Enum that represent the states that the thermostat can be in
- */
-enum class AppMode(val string: String) {
-    COOL("COOL"),
-    HEAT("HEAT"),
-    FAN("FAN"),
-    DRY("DRY")
-}
-
-/**
- * AppState is a dumb data class meant to hold the data that is received
- * from a GET procedure to the COAP path that holds the app's state
- */
-data class AppState(
-    var mode: AppMode,
-    var power: Boolean,
-    var target: Double,
-    var temperature: Double,
-    val valid: Boolean = true
-)
-
-internal fun decodeAppStateFromCBOR(cbor: ByteArray): AppState {
-    @Serializable
-    data class AppCoapState(
-        @Required @SerialName("Mode") val mode: String,
-        @Required @SerialName("Power") val power: Boolean,
-        @Required @SerialName("Target") val target: Double,
-        @Required @SerialName("Temperature") val temperature: Double
-    )
-
-    val state = Cbor.decodeFromByteArray<AppCoapState>(cbor)
-    return AppState(
-        AppMode.valueOf(state.mode),
-        state.power,
-        state.target,
-        state.temperature,
-        true
-    )
-}
 
 class DevicePageViewModelFactory(
     private val device: Device,
@@ -118,14 +77,6 @@ class DevicePageViewModel(
 
     // COAP paths that the ViewModel will use for getting/setting data
     data class CoapPath(val method: String, val path: String) {}
-    private val powerCoap = CoapPath("POST", "/thermostat/power")
-    private val modeCoap = CoapPath("POST", "/thermostat/mode")
-    private val targetCoap = CoapPath("POST", "/thermostat/target")
-    private val appStateCoap = CoapPath("GET", "/thermostat")
-
-    private var lastClientUpdate = System.nanoTime()
-    private val _serverState: MutableLiveData<AppState> = MutableLiveData()
-    private val _clientState = MutableLiveData<AppState>()
     private val _connState: MutableLiveData<AppConnectionState> = MutableLiveData(AppConnectionState.INITIAL_CONNECTING)
     private val _connEvent: MutableLiveEvent<AppConnectionEvent> = MutableLiveEvent()
     private val _currentUser: MutableLiveData<IamUser> = MutableLiveData()
@@ -133,28 +84,7 @@ class DevicePageViewModel(
     private var isPaused = false
     private var updateLoopJob: Job? = null
     private val handle = connectionManager.requestConnection(device) { event, _ -> onConnectionChanged(event) }
-
-    // how many times per second should we request a state update from the device?
-    private val updatesPerSecond = 10.0
-
-    /**
-     * serverState is a LiveData object that holds an AppState that was recently retrieved
-     * from the device. The contained AppState is not shown to the user directly but is
-     * merged with clientState whenever the user is not directly interacting with the UI.
-     */
-    val serverState: LiveData<AppState>
-        get() = _serverState
-
-    /**
-     * clientState is a LiveData object that holds the AppState data that the DevicePageFragment
-     * uses for updating UI. clientState is updated whenever the user interacts with the UI
-     * and is also updated from the serverState LiveData whenever the user is not interacting.
-     *
-     * This is to allow for the UI to represent the "latest" state of the device without
-     * impacting user experience by programmatically changing UI when the user is interacting.
-     */
-    val clientState: LiveData<AppState>
-        get() = _clientState
+    private lateinit var tunnel: TcpTunnel
 
     /**
      * connectionState contains the current state of the connection that the DevicePageFragment
@@ -207,21 +137,20 @@ class DevicePageViewModel(
                     return@launch
                 }
 
-                val appState = getAppStateFromDevice()
-                _clientState.postValue(appState)
-
                 if (_connState.value == AppConnectionState.DISCONNECTED) {
                     _connEvent.postEvent(AppConnectionEvent.RECONNECTED)
                 }
+
+                Log.i(TAG, "Attempting to open tunnel service...")
+                tunnel = connectionManager.openTunnelService(handle, "rtsp")
                 _connState.postValue(AppConnectionState.CONNECTED)
 
                 val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
                 _currentUser.postValue(user)
-
-                updateLoop()
             } catch (e: IamException) {
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: NabtoRuntimeException) {
+                Log.i(TAG, e.toString())
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: CancellationException) {
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
@@ -266,36 +195,6 @@ class DevicePageViewModel(
         }
     }
 
-    private suspend fun updateLoop() {
-        withContext(Dispatchers.IO) {
-            while (true) {
-                if (isPaused) {
-                    // the device is still connected but we need to stop querying it
-                    delay(500)
-                    continue
-                }
-                val state = getAppStateFromDevice()
-                if (state.valid) {
-                    _serverState.postValue(state)
-                }
-
-                // we wait until 3 seconds have passed since the user last changed something before programmatically changing values
-                val currentTime = System.nanoTime()
-                val guardTime = 1e+9 * 3
-                if (currentTime > (lastClientUpdate + guardTime)) {
-                    val merged = state.copy(temperature = _clientState.value?.temperature ?: 0.0)
-                    if (merged != _clientState.value) {
-                        _clientState.postValue(state)
-                    }
-                }
-
-                // delay until the next update is needed
-                val delayTime = (1.0 / updatesPerSecond * 1000.0).toLong()
-                delay(delayTime)
-            }
-        }
-    }
-
     /**
      * Try to reconnect a disconnected connection.
      *
@@ -309,101 +208,16 @@ class DevicePageViewModel(
         }
     }
 
-    private suspend fun <T> safeCall(errorVal: T, code: suspend () -> T): T {
-        return try {
-            code()
-        } catch (e: NabtoRuntimeException) {
-            errorVal
-        } catch (e: CancellationException) {
-            Log.i(TAG, "safeCall was cancelled")
-            errorVal
+    fun setMediaSourceForPlayer(player: ExoPlayer) {
+        player.apply {
+            // @TODO:
+            //val rtsp = "rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4"
+            val rtsp = "rtsp://127.0.0.1:${tunnel.localPort}/video"
+            Log.i(TAG, "Using url $rtsp")
+            val source = RtspMediaSource.Factory().setForceUseRtpTcp(true).createMediaSource(MediaItem.fromUri(rtsp))
+            setMediaSource(source)
+            prepare()
         }
-    }
-
-    /**
-     * Set the power state on the device and update corresponding LiveData variables.
-     */
-    fun setPower(toggled: Boolean) {
-        viewModelScope.launch {
-            lastClientUpdate = System.nanoTime()
-            safeCall({}) {
-                val coap = connectionManager.createCoap(handle, powerCoap.method, powerCoap.path)
-                val cbor = Cbor.encodeToByteArray(toggled)
-                coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
-                coap.awaitExecute()
-                if (coap.responseStatusCode != 204) {
-                    _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
-                }
-            }
-            _clientState.value?.let {
-                val state = it.copy()
-                state.power = toggled
-                _clientState.postValue(state)
-            }
-        }
-    }
-
-    /**
-     * Set the mode on the device and update corresponding LiveData variables.
-     */
-    fun setMode(mode: AppMode) {
-        viewModelScope.launch {
-            lastClientUpdate = System.nanoTime()
-            safeCall({}) {
-                val coap = connectionManager.createCoap(handle, modeCoap.method, modeCoap.path)
-                val cbor = Cbor.encodeToByteArray(mode.string)
-                coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
-                coap.awaitExecute()
-                if (coap.responseStatusCode != 204) {
-                    _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
-                }
-            }
-            _clientState.value?.let {
-                val state = it.copy()
-                state.mode = mode
-                _clientState.postValue(state)
-            }
-        }
-    }
-
-    /**
-     * Set the target temperature on the device and update corresponding LiveData variables.
-     */
-    fun setTarget(target: Double) {
-        viewModelScope.launch {
-            lastClientUpdate = System.nanoTime()
-            safeCall({}) {
-                val coap = connectionManager.createCoap(handle, targetCoap.method, targetCoap.path)
-                val cbor = Cbor.encodeToByteArray(target)
-                coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
-                coap.awaitExecute()
-                if (coap.responseStatusCode != 204) {
-                    _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
-                }
-            }
-            _clientState.value?.let {
-                val state = it.copy()
-                state.target = target
-                _clientState.postValue(state)
-            }
-        }
-    }
-
-    private suspend fun getAppStateFromDevice(): AppState {
-        val invalidState = AppState(AppMode.COOL, false, 0.0, 0.0, false)
-        val state = safeCall(invalidState) {
-            val coap = connectionManager.createCoap(handle, appStateCoap.method, appStateCoap.path)
-            coap.awaitExecute()
-            val data = coap.responsePayload
-            val statusCode = coap.responseStatusCode
-
-            if (statusCode != 205) {
-                return@safeCall invalidState
-            }
-
-            return@safeCall decodeAppStateFromCBOR(data)
-        }
-        return state
     }
 
     override fun onCleared() {
@@ -431,22 +245,26 @@ class DevicePageFragment : Fragment(), MenuProvider {
         )
     }
 
-    // we need this to disable programmatic update of the slider when the user is interacting
-    private var isTouchingTemperatureSlider = false
     private lateinit var device: Device
 
     private lateinit var mainLayout: View
     private lateinit var lostConnectionBar: View
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var loadingSpinner: View
-    private lateinit var temperatureView: TextView
-    private lateinit var modeSpinnerView: Spinner
-    private lateinit var powerSwitchView: SwitchMaterial
-    private lateinit var targetSliderView: Slider
+
+    private lateinit var videoPlayer: StyledPlayerView
+    private lateinit var exoPlayer: ExoPlayer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         device = requireArguments().get("device") as Device
+
+        exoPlayer = ExoPlayer.Builder(requireActivity()).apply {
+            val loadControl = DefaultLoadControl.Builder().apply {
+                setBufferDurationsMs(1000, 2000, 1000, 1000)
+            }.build()
+            setLoadControl(loadControl)
+        }.build()
     }
 
     override fun onCreateView(
@@ -465,21 +283,9 @@ class DevicePageFragment : Fragment(), MenuProvider {
         swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
         lostConnectionBar = view.findViewById(R.id.dp_lost_connection_bar)
         loadingSpinner =  view.findViewById(R.id.dp_loading)
-        temperatureView = view.findViewById(R.id.dp_temperature)
-        modeSpinnerView = view.findViewById(R.id.dp_mode_spinner)
-        powerSwitchView = view.findViewById(R.id.dp_power_switch)
-        targetSliderView = view.findViewById(R.id.dp_target_slider)
+        videoPlayer = view.findViewById(R.id.video_player)
 
-        model.clientState.observe(viewLifecycleOwner, Observer { state -> onStateChanged(view, state) })
-        model.serverState.observe(viewLifecycleOwner, Observer { state ->
-            temperatureView.text = getString(R.string.temperature_format, state.temperature)
-        })
-
-        val targetTextView = view.findViewById<TextView>(R.id.dp_target_temperature)
-        targetTextView.text = getString(R.string.target_format, targetSliderView.value.roundToInt())
-        targetSliderView.addOnChangeListener { slider, value, fromUser ->
-            targetTextView.text = getString(R.string.target_format, value.roundToInt())
-        }
+        videoPlayer.player = exoPlayer
 
         model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
         model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
@@ -495,92 +301,32 @@ class DevicePageFragment : Fragment(), MenuProvider {
         model.currentUser.observe(viewLifecycleOwner, Observer {
             view.findViewById<TextView>(R.id.dp_info_userid).text = it.username
         })
-
-        ArrayAdapter.createFromResource(
-            requireContext(),
-            R.array.modes_array,
-            android.R.layout.simple_spinner_item
-        ).also { adapter ->
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            modeSpinnerView.adapter = adapter
-        }
-
-        powerSwitchView.setOnClickListener {
-            model.setPower(powerSwitchView.isChecked)
-        }
-
-        modeSpinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                if (pos >= 0 && pos < AppMode.values().size) {
-                    val mode = AppMode.values()[pos]
-                    model.setMode(mode)
-                }
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) { }
-        }
-
-        targetSliderView.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
-            override fun onStartTrackingTouch(slider: Slider) {
-                isTouchingTemperatureSlider = true
-            }
-
-            override fun onStopTrackingTouch(slider: Slider) {
-                model.setTarget(slider.value.toDouble())
-                isTouchingTemperatureSlider = false
-            }
-
-        })
     }
 
     private fun refresh() {
         model.tryReconnect()
     }
 
-    private fun onStateChanged(view: View, state: AppState) {
-        if (isTouchingTemperatureSlider) return
-        powerSwitchView.isChecked = state.power
-        var target = state.target.toFloat()
-        val min = targetSliderView.valueFrom
-        val max = targetSliderView.valueTo
-        if (target > max) {
-            target = max
-            model.setTarget(target.toDouble())
-        } else if (target < min) {
-            target = min
-            model.setTarget(target.toDouble())
-        }
-        targetSliderView.value = target
-        modeSpinnerView.setSelection(state.mode.ordinal)
-    }
-
     private fun onConnectionStateChanged(view: View, state: AppConnectionState) {
         Log.i(TAG, "Connection state changed to $state")
-
-        fun setViewsEnabled(enable: Boolean) {
-            powerSwitchView.isEnabled = enable
-            targetSliderView.isEnabled = enable
-            modeSpinnerView.isEnabled = enable
-            temperatureView.isEnabled = enable
-        }
 
         when (state) {
             AppConnectionState.INITIAL_CONNECTING -> {
                 swipeRefreshLayout.visibility = View.INVISIBLE
                 loadingSpinner.visibility = View.VISIBLE
-                setViewsEnabled(false)
             }
 
             AppConnectionState.CONNECTED -> {
                 loadingSpinner.visibility = View.INVISIBLE
                 lostConnectionBar.visibility = View.GONE
                 swipeRefreshLayout.visibility = View.VISIBLE
-                setViewsEnabled(true)
 
                 lostConnectionBar.animate()
                     .translationY(-lostConnectionBar.height.toFloat())
                 mainLayout.animate()
                     .translationY(0f)
+
+                model.setMediaSourceForPlayer(exoPlayer)
             }
 
             AppConnectionState.DISCONNECTED -> {
@@ -589,7 +335,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
                     .translationY(0f)
                 mainLayout.animate()
                     .translationY(lostConnectionBar.height.toFloat())
-                setViewsEnabled(false)
+
+                exoPlayer.stop()
             }
         }
     }

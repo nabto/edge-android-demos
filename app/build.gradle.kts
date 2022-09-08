@@ -91,6 +91,9 @@ dependencies {
     kapt ("androidx.room:room-compiler:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
 
+    // Exoplayer
+    implementation ("com.google.android.exoplayer:exoplayer:2.18.1")
+
     // Test dependencies
     testImplementation ("junit:junit:4.13.2")
     androidTestImplementation ("androidx.test.ext:junit:1.1.3")

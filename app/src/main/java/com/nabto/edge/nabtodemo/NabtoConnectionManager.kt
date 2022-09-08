@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.*
 import com.nabto.edge.client.*
 import com.nabto.edge.client.ktx.awaitConnect
+import com.nabto.edge.client.ktx.awaitOpen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -136,6 +137,9 @@ interface NabtoConnectionManager {
      * @throws[IllegalStateException] If [handle] is not valid.
      */
     fun createCoap(handle: ConnectionHandle, method: String, path: String): Coap
+
+    // @TODO: Documentation
+    suspend fun openTunnelService(handle: ConnectionHandle, service: String): TcpTunnel
 
     /**
      * Get a [LiveData] object holding a [NabtoConnectionState] representing the connection
@@ -332,6 +336,16 @@ class NabtoConnectionManagerImpl(
     override fun createCoap(handle: ConnectionHandle, method: String, path: String): Coap {
         return connectionMap[handle]?.connection?.createCoap(method, path) ?: run {
             throw IllegalStateException("Attempted to create COAP object for invalid handle!")
+        }
+    }
+
+    override suspend fun openTunnelService(handle: ConnectionHandle, service: String): TcpTunnel {
+        return connectionMap[handle]?.let {
+            val tunnel = it.connection.createTcpTunnel()
+            tunnel.open(service, 0)
+            return@let tunnel
+        } ?: run {
+            throw IllegalStateException("Attempted to open a tunnel service on an invalid handle!")
         }
     }
 
