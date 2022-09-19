@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
+import com.nabto.edge.sharedcode.*
 
 private class PairDeviceViewModelFactory(
     private val manager: NabtoConnectionManager,

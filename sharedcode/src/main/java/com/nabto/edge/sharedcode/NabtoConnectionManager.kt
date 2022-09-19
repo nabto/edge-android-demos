@@ -1,6 +1,5 @@
-package com.nabto.edge.thermostatdemo
+package com.nabto.edge.sharedcode
 
-import android.app.Application
 import android.util.Log
 import androidx.lifecycle.*
 import com.nabto.edge.client.*
@@ -149,7 +148,6 @@ interface NabtoConnectionManager {
 }
 
 class NabtoConnectionManagerImpl(
-    private val app: Application,
     private val repo: NabtoRepository,
     private val client: NabtoClient
 ): NabtoConnectionManager, LifecycleEventObserver {
@@ -270,7 +268,7 @@ class NabtoConnectionManagerImpl(
         val options = JSONObject()
         options.put("ProductId", device.productId)
         options.put("DeviceId", device.deviceId)
-        options.put("ServerKey", NabtoConfig.SERVER_KEY)
+        options.put("ServerKey", internalConfig.SERVER_KEY)
         options.put("PrivateKey", repo.getClientPrivateKey())
         options.put("ServerConnectToken", device.SCT)
         options.put("KeepAliveInterval", 2000)

@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    compileSdk = 32
+    compileSdk = 33
 
     defaultConfig {
         applicationId = "com.nabto.edge.thermostatdemo"
@@ -70,6 +70,7 @@ dependencies {
     implementation("androidx.annotation:annotation:1.4.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1")
     implementation("androidx.lifecycle:lifecycle-process:2.5.1")
+    implementation(project(mapOf("path" to ":sharedcode")))
 
     // Koin dependency injection
     val koinVersion = "3.2.0"

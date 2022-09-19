@@ -26,6 +26,7 @@ import kotlinx.serialization.*
 import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
 import kotlin.math.roundToInt
+import com.nabto.edge.sharedcode.*
 
 /**
  * Enum that represent the states that the thermostat can be in

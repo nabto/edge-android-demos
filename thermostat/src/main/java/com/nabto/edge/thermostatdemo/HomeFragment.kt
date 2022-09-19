@@ -22,6 +22,7 @@ import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.awaitIsCurrentUserPaired
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
+import com.nabto.edge.sharedcode.*
 
 /**
  * Enum to represent different connection states of devices in the home page list of devices.
