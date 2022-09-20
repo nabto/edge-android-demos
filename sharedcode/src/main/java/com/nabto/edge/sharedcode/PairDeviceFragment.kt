@@ -1,4 +1,4 @@
-package com.nabto.edge.thermostatdemo
+package com.nabto.edge.sharedcode
 
 import android.os.Bundle
 import android.util.Log
@@ -7,10 +7,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
+import androidx.navigation.navOptions
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.iamutil.DeviceDetails
 import com.nabto.edge.iamutil.IamError
@@ -22,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
-import com.nabto.edge.sharedcode.*
 
 private class PairDeviceViewModelFactory(
     private val manager: NabtoConnectionManager,
@@ -122,7 +123,7 @@ private class PairDeviceViewModel(
         viewModelScope.launch {
             try {
                 val pairingDetails = getPairingDetails()
-                if (pairingDetails.appName != NabtoConfig.DEVICE_APP_NAME) {
+                if (pairingDetails.appName != internalConfig.DEVICE_APP_NAME) {
                     _pairingResult.postValue(PairingResult.FailedIncorrectApp)
                     return@launch
                 }
@@ -253,6 +254,10 @@ class PairDeviceFragment : Fragment() {
                 is PairingResult.FailedUsernameExists -> { button.isEnabled = true }
                 else -> { findNavController().popBackStack() }
             }
+
+            findNavController().navigate("ddd".toUri(), navOptions {
+                popUpTo("")
+            })
         })
 
         val etUsername = view.findViewById<EditText>(R.id.pair_device_username)

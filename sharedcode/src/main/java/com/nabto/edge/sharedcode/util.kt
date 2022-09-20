@@ -1,4 +1,4 @@
-package com.nabto.edge.thermostatdemo
+package com.nabto.edge.sharedcode
 
 import android.app.Activity
 import android.view.View

@@ -1,4 +1,4 @@
-package com.nabto.edge.thermostatdemo
+package com.nabto.edge.sharedcode
 
 import android.app.AlertDialog
 import android.app.Dialog
@@ -12,7 +12,6 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.fragment.app.DialogFragment
 import com.google.android.material.snackbar.Snackbar
-import com.nabto.edge.sharedcode.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject

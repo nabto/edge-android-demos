@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:id="@+id/thermostat_graph"
+            app:startDestination="@id/nav_graph">
+
+    <include
+        app:graph="@navigation/nav_graph"/>
+
+    <navigation android:id="@+id/device_graph"
+        app:startDestination="@id/devicePageFragment">
+
+        <fragment
+            android:id="@+id/devicePageFragment"
+            android:name="com.nabto.edge.thermostatdemo.DevicePageFragment"
+            android:label="Thermostat"
+            tools:layout="@layout/fragment_device_page">
+        </fragment>
+
+        <!-- This deeplink is used so the fragments in sharedcode can send navigate to the device page. -->
+        <argument android:name="productId" />
+        <argument android:name="deviceId" />
+        <deepLink
+            app:uri="android-app://com.nabto.edge/app/{productId}/{deviceId}" />
+
+    </navigation>
+
+</navigation>

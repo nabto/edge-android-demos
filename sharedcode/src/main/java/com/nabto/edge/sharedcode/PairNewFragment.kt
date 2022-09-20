@@ -1,4 +1,4 @@
-package com.nabto.edge.thermostatdemo
+package com.nabto.edge.sharedcode
 
 import android.os.Bundle
 import androidx.fragment.app.Fragment
@@ -14,7 +14,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import org.koin.android.ext.android.inject
-import com.nabto.edge.sharedcode.*
 
 class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.ViewHolder>() {
     class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {

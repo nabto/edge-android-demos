@@ -1,4 +1,4 @@
-package com.nabto.edge.thermostatdemo
+package com.nabto.edge.sharedcode
 
 import android.os.Bundle
 import android.util.Log
@@ -7,12 +7,14 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.findFragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.*
+import androidx.navigation.NavDeepLinkRequest
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -262,7 +264,8 @@ class HomeFragment : Fragment(), MenuProvider {
             model.releaseAllExcept(device)
             val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
             val bundle = bundleOf("device" to device, "title" to title, "deviceId" to device.deviceId)
-            findNavController().navigate(R.id.action_homeFragment_to_devicePageFragment, bundle)
+            val uri = "android-app://com.nabto.edge/app/${device.productId}/${device.deviceId}".toUri()
+            findNavController().navigate(uri)
         }
     }
 

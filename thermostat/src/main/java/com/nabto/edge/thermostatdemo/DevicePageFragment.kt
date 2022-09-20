@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.*
 import android.widget.*
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.*
@@ -70,14 +71,18 @@ internal fun decodeAppStateFromCBOR(cbor: ByteArray): AppState {
 }
 
 class DevicePageViewModelFactory(
-    private val device: Device,
-    private val connectionManager: NabtoConnectionManager,
+    private val productId: String,
+    private val deviceId: String,
+    private val database: DeviceDatabase,
+    private val connectionManager: NabtoConnectionManager
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return modelClass.getConstructor(
-            Device::class.java,
+            String::class.java,
+            String::class.java,
+            DeviceDatabase::class.java,
             NabtoConnectionManager::class.java
-        ).newInstance(device, connectionManager)
+        ).newInstance(productId, deviceId, database, connectionManager)
     }
 }
 
@@ -112,7 +117,9 @@ enum class AppConnectionEvent {
  * connection handles from the manager.
  */
 class DevicePageViewModel(
-    device: Device,
+    private val productId: String,
+    private val deviceId: String,
+    private val database: DeviceDatabase,
     private val connectionManager: NabtoConnectionManager
 ) : ViewModel() {
     private val TAG = this.javaClass.simpleName
@@ -130,10 +137,11 @@ class DevicePageViewModel(
     private val _connState: MutableLiveData<AppConnectionState> = MutableLiveData(AppConnectionState.INITIAL_CONNECTING)
     private val _connEvent: MutableLiveEvent<AppConnectionEvent> = MutableLiveEvent()
     private val _currentUser: MutableLiveData<IamUser> = MutableLiveData()
+    private val _device = MutableLiveData<Device>()
 
     private var isPaused = false
     private var updateLoopJob: Job? = null
-    private val handle = connectionManager.requestConnection(device) { event, _ -> onConnectionChanged(event) }
+    private lateinit var handle: ConnectionHandle
 
     // how many times per second should we request a state update from the device?
     private val updatesPerSecond = 10.0
@@ -179,10 +187,19 @@ class DevicePageViewModel(
     val currentUser: LiveData<IamUser>
         get() = _currentUser
 
+    val device: LiveData<Device>
+        get() = _device
+
     init {
-        // We're already connected from the home page.
-        if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
-            startup()
+        viewModelScope.launch {
+            val dao = database.deviceDao()
+            val dev = withContext(Dispatchers.IO) { dao.get(productId, deviceId) }
+            _device.postValue(dev)
+            handle = connectionManager.requestConnection(dev) { event, _ -> onConnectionChanged(event) }
+            if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
+                // We're already connected from the home page.
+                startup()
+            }
         }
     }
 
@@ -425,16 +442,20 @@ class DevicePageFragment : Fragment(), MenuProvider {
     private val TAG = this.javaClass.simpleName
 
     private val model: DevicePageViewModel by navGraphViewModels(R.id.device_graph) {
+        val productId = arguments?.getString("productId") ?: ""
+        val deviceId = arguments?.getString("deviceId") ?: ""
         val connectionManager: NabtoConnectionManager by inject()
+        val database: DeviceDatabase by inject()
         DevicePageViewModelFactory(
-            device,
+            productId,
+            deviceId,
+            database,
             connectionManager
         )
     }
 
     // we need this to disable programmatic update of the slider when the user is interacting
     private var isTouchingTemperatureSlider = false
-    private lateinit var device: Device
 
     private lateinit var mainLayout: View
     private lateinit var lostConnectionBar: View
@@ -444,11 +465,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
     private lateinit var modeSpinnerView: Spinner
     private lateinit var powerSwitchView: SwitchMaterial
     private lateinit var targetSliderView: Slider
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        device = requireArguments().get("device") as Device
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -489,9 +505,16 @@ class DevicePageFragment : Fragment(), MenuProvider {
             refresh()
         }
 
-        view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
-        view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
-        view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
+        model.device.observe(viewLifecycleOwner, Observer { device ->
+            view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
+            view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
+            view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
+
+            // Slightly hacky way of programmatically setting toolbar title
+            // @TODO: A more "proper" way to do it could be to have an activity bound
+            //        ViewModel that lets you set the title.
+            (requireActivity() as AppCompatActivity).supportActionBar?.title = device.friendlyName
+        })
 
         model.currentUser.observe(viewLifecycleOwner, Observer {
             view.findViewById<TextView>(R.id.dp_info_userid).text = it.username

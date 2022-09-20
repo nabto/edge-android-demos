@@ -99,7 +99,10 @@ interface DeviceDao {
     @Query("SELECT * FROM devices")
     fun _getAll(): Flow<List<DatabaseDevice>>
 
-    @Query("SELECT EXISTS(SELECT * FROM devices WHERE productId = :productId AND productId = :deviceId)")
+    @Query("SELECT * FROM devices WHERE productId = :productId AND deviceId = :deviceId")
+    fun _get(productId: String, deviceId: String): DatabaseDevice
+
+    @Query("SELECT EXISTS(SELECT * FROM devices WHERE productId = :productId AND deviceId = :deviceId)")
     fun exists(productId: String, deviceId: String): Boolean
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -107,6 +110,10 @@ interface DeviceDao {
 
     @Query("DELETE FROM devices")
     fun deleteAll()
+}
+
+fun DeviceDao.get(productId: String, deviceId: String): Device {
+    return convertEntryToDevice(_get(productId, deviceId))
 }
 
 fun DeviceDao.getAll(): Flow<List<Device>> {

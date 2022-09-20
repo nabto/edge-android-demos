@@ -40,6 +40,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+        freeCompilerArgs = freeCompilerArgs + "-Xjvm-default=all"
     }
 }
 
@@ -78,6 +79,14 @@ dependencies {
     implementation ("androidx.room:room-runtime:$roomVersion")
     kapt ("androidx.room:room-compiler:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
+
+    // Koin dependency injection
+    val koinVersion = "3.2.0"
+    implementation ("io.insert-koin:koin-core:$koinVersion")
+    implementation ("io.insert-koin:koin-android:$koinVersion")
+    implementation ("io.insert-koin:koin-androidx-workmanager:$koinVersion")
+    implementation ("io.insert-koin:koin-androidx-navigation:$koinVersion")
+    testImplementation ("io.insert-koin:koin-test:$koinVersion")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.3")
