@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/pairing_flow"
+    app:route="pairing_flow"
+    app:startDestination="@id/pairLandingFragment">
+
+    <fragment
+        android:id="@+id/pairLandingFragment"
+        android:name="com.nabto.edge.sharedcode.PairLandingFragment"
+        android:label="@string/title_pairing_landing"
+        tools:layout="@layout/fragment_pair_landing" >
+        <action
+            android:id="@+id/action_pairLandingFragment_to_pairNewFragment"
+            app:destination="@id/pairNewFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/pairNewFragment"
+        android:name="com.nabto.edge.sharedcode.PairNewFragment"
+        android:label="@string/title_pair_new"
+        tools:layout="@layout/fragment_pair_new" >
+    </fragment>
+
+    <fragment
+        android:id="@+id/pairDeviceFragment"
+        android:name="com.nabto.edge.sharedcode.PairDeviceFragment"
+        app:route="pair_device/{productId}/{deviceId}?password={password}"
+        android:label="Pair with {deviceId}">
+        <argument android:name="productId"
+            app:argType="string" />
+        <argument android:name="deviceId"
+            app:argType="string" />
+        <argument android:name="password"
+            app:argType="string"
+            android:defaultValue="" />
+    </fragment>
+</navigation>

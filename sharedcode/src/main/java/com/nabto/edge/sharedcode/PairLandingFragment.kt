@@ -56,9 +56,7 @@ class PairLandingFragment : Fragment() {
         pairButton.setOnClickListener {
             val device = parsePairingString(etPairingString.text.toString())
             if (device.productId.isNotEmpty() && device.deviceId.isNotEmpty()) {
-                val bundle = device.toBundle()
-                bundle.putString("deviceId", device.deviceId)
-                findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
+                findNavController().navigate(AppRoute.pairDevice(device.productId, device.deviceId, device.password))
             } else {
                 etPairingString.error = "Pairing string does not match pattern."
             }

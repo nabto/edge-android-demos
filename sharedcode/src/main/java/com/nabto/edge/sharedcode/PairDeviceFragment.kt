@@ -11,6 +11,7 @@ import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.*
+import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navOptions
 import com.nabto.edge.client.NabtoRuntimeException
@@ -212,7 +213,14 @@ class PairDeviceFragment : Fragment() {
     private val database: DeviceDatabase by inject()
     private val manager: NabtoConnectionManager by inject()
     private val model: PairDeviceViewModel by viewModels {
-        PairDeviceViewModelFactory(manager, Device.fromBundle(requireArguments()))
+        val device = requireArguments().let {
+            Device(
+                productId = it.getString("productId") ?: "",
+                deviceId = it.getString("deviceId") ?: "",
+                password = it.getString("password") ?: ""
+            )
+        }
+        PairDeviceViewModelFactory(manager, device)
     }
 
     override fun onCreateView(
@@ -250,14 +258,10 @@ class PairDeviceFragment : Fragment() {
 
             view.snack(getString(stringIdentifier))
             when (result) {
-                is PairingResult.Success -> { findNavController().navigate(R.id.action_nav_return_home) }
+                is PairingResult.Success -> { findNavController().navigateAndPopUpToRoute(AppRoute.home(), true) }
                 is PairingResult.FailedUsernameExists -> { button.isEnabled = true }
                 else -> { findNavController().popBackStack() }
             }
-
-            findNavController().navigate("ddd".toUri(), navOptions {
-                popUpTo("")
-            })
         })
 
         val etUsername = view.findViewById<EditText>(R.id.pair_device_username)

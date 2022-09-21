@@ -5,6 +5,7 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.*
+import androidx.navigation.NavController
 import com.google.android.material.snackbar.Snackbar
 
 /**
@@ -58,5 +59,22 @@ fun Fragment.clearFocusAndHideKeyboard() {
     if (view != null) {
         view.clearFocus()
         imm.hideSoftInputFromWindow(view.windowToken, 0)
+    }
+}
+
+/**
+ * This function is meant to achieve the same as calling navigate with inclusive popUpTo
+ * Using navigate in that way seems to be currently bugged, so we have our own
+ * slightly hacky alternative here.
+ */
+fun NavController.navigateAndPopUpToRoute(route: String, inclusive: Boolean = false) {
+    val entry = backQueue.indexOfLast { it.destination.route == route }
+    if (entry != -1) {
+        val n = backQueue.size - entry - (if (inclusive) 0 else 1)
+        repeat(n) {
+            popBackStack()
+        }
+    } else {
+        navigate(route = route)
     }
 }

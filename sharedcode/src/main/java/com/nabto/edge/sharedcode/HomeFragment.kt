@@ -235,7 +235,7 @@ class HomeFragment : Fragment(), MenuProvider {
         recycler.layoutManager = layoutManager
 
         view.findViewById<Button>(R.id.home_pair_new_button).setOnClickListener {
-            findNavController().navigate(R.id.action_homeFragment_to_pairLandingFragment)
+            findNavController().navigate(AppRoute.pairingFlow())
         }
 
         model.deviceList.observe(viewLifecycleOwner, Observer { devices ->
@@ -257,15 +257,10 @@ class HomeFragment : Fragment(), MenuProvider {
     fun onDeviceClick(device: Device) {
         if (model.getStatus(device) == HomeDeviceItemStatus.UNPAIRED) {
             model.release()
-            val bundle = device.toBundle()
-            bundle.putString("deviceId", device.deviceId)
-            findNavController().navigate(R.id.action_nav_pairDeviceFragment, bundle)
+            findNavController().navigate(AppRoute.pairDevice(device.productId, device.deviceId))
         } else {
             model.releaseAllExcept(device)
-            val title = device.friendlyName.ifEmpty { getString(R.string.unnamed_device) }
-            val bundle = bundleOf("device" to device, "title" to title, "deviceId" to device.deviceId)
-            val uri = "android-app://com.nabto.edge/app/${device.productId}/${device.deviceId}".toUri()
-            findNavController().navigate(uri)
+            findNavController().navigate(AppRoute.appDevicePage(device.productId, device.deviceId))
         }
     }
 
@@ -276,7 +271,7 @@ class HomeFragment : Fragment(), MenuProvider {
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
         if (menuItem.itemId == R.id.action_pair_new) {
             model.release()
-            findNavController().navigate(R.id.action_homeFragment_to_pairLandingFragment)
+            findNavController().navigate(AppRoute.pairingFlow())
             return true
         }
 
@@ -287,7 +282,7 @@ class HomeFragment : Fragment(), MenuProvider {
 
         if (menuItem.itemId == R.id.action_settings) {
             model.release()
-            findNavController().navigate(R.id.action_homeFragment_to_appSettingsFragment)
+            findNavController().navigate(AppRoute.settings())
         }
         return false
     }
