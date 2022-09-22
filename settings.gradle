@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 rootProject.name = "Nabto Edge Android Demo"
 include ':sharedcode'
 include ':thermostat'
+include ':tunnelvideo'

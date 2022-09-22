@@ -145,6 +145,9 @@ interface NabtoConnectionManager {
      * [handle] is invalid.
      */
     fun getConnectionState(handle: ConnectionHandle): LiveData<NabtoConnectionState>?
+
+    // @TODO: Documentation
+    suspend fun openTunnelService(handle: ConnectionHandle, service: String): TcpTunnel
 }
 
 class NabtoConnectionManagerImpl(
@@ -335,6 +338,16 @@ class NabtoConnectionManagerImpl(
 
     override fun getConnectionState(handle: ConnectionHandle): LiveData<NabtoConnectionState>? {
         return connectionMap[handle]?.state
+    }
+
+    override suspend fun openTunnelService(handle: ConnectionHandle, service: String): TcpTunnel {
+        return connectionMap[handle]?.let {
+            val tunnel = it.connection.createTcpTunnel()
+            tunnel.open(service, 0)
+            return@let tunnel
+        } ?: run {
+            throw IllegalStateException("Attempted to open a tunnel service on an invalid handle!")
+        }
     }
 
     override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {

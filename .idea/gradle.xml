@@ -13,6 +13,7 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/sharedcode" />
             <option value="$PROJECT_DIR$/thermostat" />
+            <option value="$PROJECT_DIR$/tunnelvideo" />
           </set>
         </option>
       </GradleProjectSettings>
