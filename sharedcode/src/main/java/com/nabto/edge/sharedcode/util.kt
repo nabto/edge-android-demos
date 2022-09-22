@@ -1,11 +1,13 @@
 package com.nabto.edge.sharedcode
 
 import android.app.Activity
+import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.*
 import androidx.navigation.NavController
+import androidx.navigation.navOptions
 import com.google.android.material.snackbar.Snackbar
 
 /**
@@ -68,13 +70,9 @@ fun Fragment.clearFocusAndHideKeyboard() {
  * slightly hacky alternative here.
  */
 fun NavController.navigateAndPopUpToRoute(route: String, inclusive: Boolean = false) {
-    val entry = backQueue.indexOfLast { it.destination.route == route }
-    if (entry != -1) {
-        val n = backQueue.size - entry - (if (inclusive) 0 else 1)
-        repeat(n) {
-            popBackStack()
-        }
-    } else {
-        navigate(route = route)
-    }
+    val entry = backQueue.last { it.destination.route == route }
+    val id = entry.destination.id
+    navigate(route, navOptions {
+        popUpTo(id) { this.inclusive = inclusive }
+    })
 }

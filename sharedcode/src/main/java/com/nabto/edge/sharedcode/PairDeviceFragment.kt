@@ -70,6 +70,7 @@ private class PairDeviceViewModel(
     ) : ViewModel() {
     private val TAG = "PairDeviceViewModel"
     private var password = ""
+    private lateinit var listener: ConnectionEventListener
     private lateinit var handle: ConnectionHandle
     private val iam = IamUtil.create()
 
@@ -155,10 +156,13 @@ private class PairDeviceViewModel(
                 Log.i(TAG, "Attempted pairing failed with $e")
             } catch (e: NabtoRuntimeException) {
                 _pairingResult.postValue(PairingResult.Failed)
+                manager.unsubscribe(handle, listener)
+                manager.releaseHandle(handle)
                 Log.i(TAG, "Attempted pairing failed with $e")
             } catch (e: CancellationException) {
-                manager.releaseHandle(handle)
                 _pairingResult.postValue(PairingResult.Failed)
+                manager.unsubscribe(handle, listener)
+                manager.releaseHandle(handle)
             }
         }
     }
@@ -168,11 +172,11 @@ private class PairDeviceViewModel(
      *
      * @param[username] the user's chosen username.
      * @param[friendlyName] the user's chosen name for the device, will be stored in database.
-     * @param[displayName] the display name that the device will keep for this user.
+     * @param[displayName] the display                manager.releaseHandle(handle) name that the device will keep for this user.
      */
     fun initiatePairing(username: String, friendlyName: String, displayName: String) {
         viewModelScope.launch {
-            handle = manager.requestConnection(device) { event, _ ->
+            listener = ConnectionEventListener { event, _ ->
                 when (event) {
                     NabtoConnectionEvent.CONNECTED -> {
                         viewModelScope.launch { pairAndUpdateDevice(username, friendlyName, displayName) }
@@ -189,6 +193,7 @@ private class PairDeviceViewModel(
                     else -> {}
                 }
             }
+            handle = manager.requestConnection(device, listener)
         }
     }
 
@@ -258,7 +263,9 @@ class PairDeviceFragment : Fragment() {
 
             view.snack(getString(stringIdentifier))
             when (result) {
-                is PairingResult.Success -> { findNavController().navigateAndPopUpToRoute(AppRoute.home(), true) }
+                is PairingResult.Success -> {
+                    findNavController().navigateAndPopUpToRoute(AppRoute.home(), true)
+                }
                 is PairingResult.FailedUsernameExists -> { button.isEnabled = true }
                 else -> { findNavController().popBackStack() }
             }
