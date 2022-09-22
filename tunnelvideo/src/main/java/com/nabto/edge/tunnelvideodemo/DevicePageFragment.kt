@@ -236,14 +236,16 @@ class DevicePageViewModel(
 
     suspend fun startTunnelService() {
         Log.i(TAG, "Attempting to open tunnel service...")
-        tunnel?.close()
-        tunnel = connectionManager.openTunnelService(handle, "rtsp")
+        if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
+            tunnel?.close()
+            tunnel = connectionManager.openTunnelService(handle, "rtsp")
 
-        tunnel?.let {
-            _connState.postValue(AppConnectionState.CONNECTED)
-            _tunnelPort.postValue(it.localPort)
-            val url = "rtsp://127.0.0.1:${it.localPort}${NabtoConfig.RTSP_ENDPOINT}"
-            _rtspUrl.postValue(url)
+            tunnel?.let {
+                _connState.postValue(AppConnectionState.CONNECTED)
+                _tunnelPort.postValue(it.localPort)
+                val url = "rtsp://127.0.0.1:${it.localPort}${NabtoConfig.RTSP_ENDPOINT}"
+                _rtspUrl.postValue(url)
+            }
         }
     }
 
@@ -361,6 +363,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
         })
 
         videoPlayer.useController = false
+
+        view.findViewById<Button>(R.id.dp_refresh_video).setOnClickListener {
+            lifecycleScope.launch { model.startTunnelService() }
+        }
     }
 
     private fun refresh() {
