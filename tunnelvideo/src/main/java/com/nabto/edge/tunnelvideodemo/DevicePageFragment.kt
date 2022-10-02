@@ -25,6 +25,7 @@ import com.nabto.edge.iamutil.ktx.awaitGetCurrentUser
 import com.nabto.edge.sharedcode.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.*
+import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
 
 import com.nabto.edge.sharedcode.R as sharedres
@@ -243,7 +244,30 @@ class DevicePageViewModel(
             tunnel?.let {
                 _connState.postValue(AppConnectionState.CONNECTED)
                 _tunnelPort.postValue(it.localPort)
-                val url = "rtsp://127.0.0.1:${it.localPort}${NabtoConfig.RTSP_ENDPOINT}"
+                val coap = connectionManager.createCoap(handle, "GET", "/tcp-tunnels/services/rtsp")
+                coap.execute()
+                val res = coap.responseStatusCode
+                Log.i(TAG, "Coap got $res response")
+
+                @Serializable
+                data class ServiceInfo(
+                    @Required @SerialName("Id") val serviceId: String,
+                    @Required @SerialName("Type") val type: String,
+                    @Required @SerialName("Host") val host: String,
+                    @Required @SerialName("Port") val port: Int,
+                    @Required @SerialName("StreamPort") val streamPort: Int,
+                    @Required @SerialName("Metadata") val metadata: Map<String, String>
+                )
+
+                val payload = Cbor.decodeFromByteArray<ServiceInfo>(coap.responsePayload)
+
+                val endpoint = payload.metadata["rtsp-path"] ?: {
+                    val default = NabtoConfig.RTSP_ENDPOINT
+                    Log.w(TAG, "key 'rtsp-path' was not found in service metadata, defaulting to $default")
+                    default
+                }
+
+                val url = "rtsp://127.0.0.1:${it.localPort}$endpoint"
                 _rtspUrl.postValue(url)
             }
         }
