@@ -365,6 +365,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
         })
 
         model.rtspUrl.observe(viewLifecycleOwner, Observer { rtspUrl ->
+            view.findViewById<TextView>(R.id.dp_info_url).text = rtspUrl
             exoPlayer.apply {
                 Log.i(TAG, "Using url $rtspUrl")
                 val item = MediaItem.Builder().apply {
