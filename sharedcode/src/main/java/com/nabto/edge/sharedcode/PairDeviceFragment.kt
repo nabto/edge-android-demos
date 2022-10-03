@@ -14,11 +14,9 @@ import androidx.lifecycle.*
 import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navOptions
+import com.nabto.edge.client.Connection
 import com.nabto.edge.client.NabtoRuntimeException
-import com.nabto.edge.iamutil.DeviceDetails
-import com.nabto.edge.iamutil.IamError
-import com.nabto.edge.iamutil.IamException
-import com.nabto.edge.iamutil.IamUtil
+import com.nabto.edge.iamutil.*
 import com.nabto.edge.iamutil.ktx.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +51,16 @@ private sealed class PairingResult {
      * The chosen username is already registered with the device.
      */
     object FailedUsernameExists : PairingResult()
+
+    /**
+     * The available pairing modes on the device are not supported.
+     */
+    object FailedInvalidPairingMode : PairingResult()
+
+    /**
+     * Attempted an open password pairing but no password was provided.
+     */
+    object FailedNoPassword : PairingResult()
 
     /**
      * Pairing failed for some other reason.
@@ -136,15 +144,53 @@ private class PairDeviceViewModel(
                     return@launch
                 }
 
-                val dev = if (device.password != "") {
-                    passwordAuthenticate(device.password)
-                    pairPasswordOpen(username, friendlyName)
-                } else {
-                    pairLocalOpen(username, friendlyName)
+                val modes = iam.getAvailablePairingModes(manager.getConnection(handle))
+
+                // this list decides which modes will be tried in order
+                val supportedModes = listOf(
+                    PairingMode.PASSWORD_OPEN,
+                    PairingMode.LOCAL_OPEN
+                )
+
+                if (supportedModes.intersect(modes.toSet()).isEmpty()) {
+                    _pairingResult.postValue(PairingResult.FailedInvalidPairingMode)
+                    return@launch
                 }
 
-                updateDisplayName(username, displayName)
-                _pairingResult.postValue(PairingResult.Success(false, dev))
+                if (modes.count() == 1 && modes.contains(PairingMode.PASSWORD_OPEN)) {
+                    device.password.ifEmpty {
+                        _pairingResult.postValue(PairingResult.FailedNoPassword)
+                    }
+                }
+
+                var dev: Device? = null
+                for (mode in supportedModes) {
+                    if (dev != null) {
+                        break
+                    }
+
+                    dev = when (mode) {
+                        PairingMode.LOCAL_OPEN -> {
+                            pairLocalOpen(username, friendlyName)
+                        }
+
+                        PairingMode.PASSWORD_OPEN -> {
+                            if (device.password.isNotEmpty()) {
+                                passwordAuthenticate(device.password)
+                                pairPasswordOpen(username, friendlyName)
+                            } else null
+                        }
+
+                        else -> null
+                    }
+                }
+
+                dev?.let {
+                    updateDisplayName(username, displayName)
+                    _pairingResult.postValue(PairingResult.Success(false, it))
+                } ?: run {
+                    _pairingResult.postValue(PairingResult.FailedInvalidPairingMode)
+                }
             } catch (e: IamException) {
                 // You could carry some extra information in PairingResult.Failed using the info in the exception
                 // to give a better update to the end user
@@ -258,6 +304,8 @@ class PairDeviceFragment : Fragment() {
 
                 is PairingResult.FailedIncorrectApp -> R.string.pair_device_failed_incorrect_app
                 is PairingResult.FailedUsernameExists -> R.string.pair_device_failed_username_exists
+                is PairingResult.FailedNoPassword -> R.string.pair_device_failed_no_password
+                is PairingResult.FailedInvalidPairingMode -> R.string.pair_device_failed_invalid_pairing_modes
                 is PairingResult.Failed -> R.string.pair_device_failed
             }
 

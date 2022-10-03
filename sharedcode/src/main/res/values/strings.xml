@@ -62,4 +62,6 @@
     <string name="pair_new_empty_card">No devices have been discovered on the local network through mDNS. If your device is turned on and has mDNS enabled, you may have to wait a bit for it to show up.</string>
     <string name="device_failed_unknown">Failed to connect for some unknown reason.</string>
     <string name="failed_reconnect">Failed to reconnect!</string>
+    <string name="pair_device_failed_no_password">Failed to pair with device, only password invite pairing is supported but no password was given.</string>
+    <string name="pair_device_failed_invalid_pairing_modes">Failed to pair with device, none of the available pairing modes are supported.</string>
 </resources>
