@@ -198,6 +198,12 @@ class DevicePageViewModel(
                 // We're already connected from the home page.
                 startup()
             }
+
+            // we may have been handed a closed connection from the home page
+            // try to reconnect it if that is the case.
+            if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CLOSED) {
+                connectionManager.reconnect(handle)
+            }
         }
     }
 
