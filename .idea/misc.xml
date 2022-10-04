@@ -68,11 +68,14 @@
         <entry key="thermostat/src/main/res/layout/activity_main.xml" value="0.19375" />
         <entry key="thermostat/src/main/res/layout/fragment_app_settings.xml" value="0.19375" />
         <entry key="thermostat/src/main/res/layout/fragment_device_page.xml" value="0.19375" />
+        <entry key="tunnelhttp/src/main/res/layout/activity_main.xml" value="0.18854166666666666" />
+        <entry key="tunnelhttp/src/main/res/layout/fragment_device_page.xml" value="0.1828125" />
+        <entry key="tunnelhttp/src/main/res/menu/menu_device.xml" value="0.1828125" />
         <entry key="tunnelvideo/src/main/res/drawable-v24/ic_device_icon.xml" value="0.2105" />
         <entry key="tunnelvideo/src/main/res/drawable-v24/ic_thermostat.xml" value="0.205" />
         <entry key="tunnelvideo/src/main/res/drawable/ic_launcher_background.xml" value="0.1965" />
         <entry key="tunnelvideo/src/main/res/layout/activity_main.xml" value="0.3473731884057971" />
-        <entry key="tunnelvideo/src/main/res/layout/fragment_device_page.xml" value="0.19739583333333333" />
+        <entry key="tunnelvideo/src/main/res/layout/fragment_device_page.xml" value="0.1" />
         <entry key="tunnelvideo/src/main/res/menu/menu_device.xml" value="0.19739583333333333" />
         <entry key="tunnelvideo/src/main/res/menu/menu_main.xml" value="0.19739583333333333" />
         <entry key="tunnelvideo/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" value="0.1965" />

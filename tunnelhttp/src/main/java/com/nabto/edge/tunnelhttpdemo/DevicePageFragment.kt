@@ -1,4 +1,4 @@
-package com.nabto.edge.tunnelvideodemo
+package com.nabto.edge.tunnelhttpdemo
 
 import android.os.Bundle
 import android.util.Log
@@ -11,11 +11,6 @@ import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.exoplayer2.DefaultLoadControl
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.source.rtsp.RtspMediaSource
-import com.google.android.exoplayer2.ui.StyledPlayerView
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.TcpTunnel
 import com.nabto.edge.iamutil.IamException
@@ -24,8 +19,6 @@ import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.awaitGetCurrentUser
 import com.nabto.edge.sharedcode.*
 import kotlinx.coroutines.*
-import kotlinx.serialization.*
-import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
 
 class DevicePageViewModelFactory(
@@ -95,11 +88,6 @@ class DevicePageViewModel(
     private val _tunnelPort = MutableLiveData<Int>()
     val tunnelPort: LiveData<Int>
         get() = _tunnelPort
-
-    private val _rtspUrl = MutableLiveData<String>()
-    val rtspUrl: LiveData<String>
-        get() = _rtspUrl
-
 
     /**
      * connectionState contains the current state of the connection that the DevicePageFragment
@@ -247,31 +235,6 @@ class DevicePageViewModel(
             tunnel?.let {
                 _connState.postValue(AppConnectionState.CONNECTED)
                 _tunnelPort.postValue(it.localPort)
-                val coap = connectionManager.createCoap(handle, "GET", "/tcp-tunnels/services/rtsp")
-                coap.execute()
-                val res = coap.responseStatusCode
-                Log.i(TAG, "Coap got $res response")
-
-                @Serializable
-                data class ServiceInfo(
-                    @Required @SerialName("Id") val serviceId: String,
-                    @Required @SerialName("Type") val type: String,
-                    @Required @SerialName("Host") val host: String,
-                    @Required @SerialName("Port") val port: Int,
-                    @Required @SerialName("StreamPort") val streamPort: Int,
-                    @Required @SerialName("Metadata") val metadata: Map<String, String>
-                )
-
-                val payload = Cbor.decodeFromByteArray<ServiceInfo>(coap.responsePayload)
-
-                val endpoint = payload.metadata["rtsp-path"] ?: {
-                    val default = NabtoConfig.RTSP_ENDPOINT
-                    Log.w(TAG, "key 'rtsp-path' was not found in service metadata, defaulting to $default")
-                    default
-                }
-
-                val url = "rtsp://127.0.0.1:${it.localPort}$endpoint"
-                _rtspUrl.postValue(url)
             }
         }
     }
@@ -311,20 +274,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var loadingSpinner: View
 
-    private lateinit var videoPlayer: StyledPlayerView
-    private lateinit var exoPlayer: ExoPlayer
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        exoPlayer = ExoPlayer.Builder(requireActivity()).apply {
-            val loadControl = DefaultLoadControl.Builder().apply {
-                setBufferDurationsMs(1000, 2000, 1000, 1000)
-            }.build()
-            setLoadControl(loadControl)
-        }.build()
-    }
-
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -341,9 +290,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
         swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
         lostConnectionBar = view.findViewById(R.id.dp_lost_connection_bar)
         loadingSpinner =  view.findViewById(R.id.dp_loading)
-        videoPlayer = view.findViewById(R.id.video_player)
-
-        videoPlayer.player = exoPlayer
 
         model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
         model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
@@ -366,35 +312,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
             //        ViewModel that lets you set the title.
             (requireActivity() as AppCompatActivity).supportActionBar?.title = device.friendlyName
         })
-
-        model.rtspUrl.observe(viewLifecycleOwner, Observer { rtspUrl ->
-            view.findViewById<TextView>(R.id.dp_info_url).text = rtspUrl
-            exoPlayer.apply {
-                Log.i(TAG, "Using url $rtspUrl")
-                val item = MediaItem.Builder().apply {
-                    setUri(rtspUrl)
-                    setLiveConfiguration(
-                        MediaItem.LiveConfiguration.Builder().apply {
-                            setTargetOffsetMs(300)
-                            setMaxPlaybackSpeed(1.04f)
-                        }.build()
-                    )
-                }.build()
-                val source = RtspMediaSource.Factory()
-                    .setForceUseRtpTcp(true)
-                    .createMediaSource(item)
-                setMediaSource(source)
-                playWhenReady = true
-                prepare()
-                this.isCurrentMediaItemLive
-            }
-        })
-
-        videoPlayer.useController = false
-
-        view.findViewById<Button>(R.id.dp_refresh_video).setOnClickListener {
-            lifecycleScope.launch { model.startTunnelService() }
-        }
     }
 
     private fun refresh() {
@@ -428,7 +345,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
                 mainLayout.animate()
                     .translationY(lostConnectionBar.height.toFloat())
 
-                exoPlayer.stop()
             }
         }
     }

@@ -1,65 +1,21 @@
 <resources>
     <string name="app_name">Nabto Edge Thermostat</string>
-    <string name="title_home">Home</string>
-    <string name="title_pair_new">Pair new device</string>
-    <string name="unnamed_device">Unnamed Device</string>
+    <string name="device_page_failed_to_connect">Failed to connect to device</string>
+    <string name="device_page_lost_connection">LOST CONNECTION TO DEVICE</string>
+    <string name="device_page_power_switch_label">Thermostat active</string>
+    <string name="device_page_incorrect_app">Failed to connect, device is not a thermostat.</string>
+    <string name="device_page_failed_update">Failed updating thermostat info. You are likely using an incorrect version of thermostat software, contact your administrator.</string>
+    <string name="device_failed_not_paired">Failed to connect, you are not paired with this device.</string>
+    <string name="pair_device_failed_incorrect_app">Failed to pair with device, it\'s not a thermostat!</string>
+    <string name="failed_reconnect">Failed to reconnect!</string>
     <string name="temperature_format">%.1f°C in room</string>
     <string name="target_format">%d°C</string>
+    <string name="device_page_app_settings">Thermostat settings</string>
     <string-array name="modes_array">
         <item>Cool</item>
         <item>Heat</item>
         <item>Circulate</item>
         <item>Dehumidify</item>
     </string-array>
-    <string name="home_empty_card">You have not yet paired with any devices. Pair with a new device to get started.</string>
-    <string name="home_empty_button">Pair new</string>
-    <string name="pair_device_already_paired">Device has already been paired with.</string>
-    <string name="pair_device_success">Successfully paired with device!</string>
-    <string name="pair_device_failed_incorrect_app">Failed to pair with device, it\'s not a thermostat!</string>
-    <string name="pair_device_failed">Failed to pair with device.</string>
-    <string name="username">Username</string>
-    <string name="friendly_device_name">Friendly Device Name</string>
-    <string name="pair_device_button">pair with device</string>
-    <string name="pair_device_form_info">Fill in a username and a friendly name that the device will be remembered by.\n\nUsername should only contain plain lowercase letters.</string>
-    <string name="pair_device_failed_username_exists">Failed to pair, username already taken!</string>
-    <string name="device_page_failed_to_connect">Failed to connect to device</string>
-    <string name="device_page_lost_connection">LOST CONNECTION TO DEVICE</string>
-    <string name="device_page_app_settings">Thermostat settings</string>
-    <string name="device_page_power_switch_label">Thermostat active</string>
     <string name="mode">Mode</string>
-    <string name="device_page_device_information">Device information</string>
-    <string name="name">Name</string>
-    <string name="device_page_app_name">App Name</string>
-    <string name="device_id">Device ID</string>
-    <string name="product_id">Product ID</string>
-    <string name="user_id">User ID</string>
-    <string name="refresh">Refresh</string>
-    <string name="device_page_incorrect_app">Failed to connect, device is not a thermostat.</string>
-    <string name="device_page_failed_update">Failed updating thermostat info. You are likely using an incorrect version of thermostat software, contact your administrator.</string>
-    <string name="device_failed_not_paired">Failed to connect, you are not paired with this device.</string>
-    <string name="title_app_settings">App Settings</string>
-    <string name="app_settings_displayname">Fill in your display name here. Other users of shared devices can see this display name.</string>
-    <string name="display_name">Display Name</string>
-    <string name="app_settings_client_pk">Here you can reset your client private key. This key is used for authentication with a device. Resetting will delete the current private key and create a new one for you. You will have to redo pairing with your devices in this case. Only reset your client private key when you absolutely have to. Your current private key is</string>
-    <string name="app_settings_database_reset">Here you can reset your remembered devices. Note that you\'re still paired with the devices, you will have to add them again using discover or pairing string.</string>
-    <string name="client_private_key">Client Private Key</string>
-    <string name="device_database">Device Database</string>
-    <string name="app_settings_reset_button">Reset device database</string>
-    <string name="app_settings_pk_reset_button">Reset client private key</string>
-    <string name="app_settings_display_name_button">Save display name</string>
-    <string name="app_settings_saved_snack">Display name has been saved.</string>
-    <string name="confirm">Confirm</string>
-    <string name="cancel">Cancel</string>
-    <string name="app_settings_database_reset_dialog">Are you sure you want to clear all remembered devices?</string>
-    <string name="app_settings_reset_client_pk_dialog">Are you sure you want to delete your current private key and generate a new one?</string>
-    <string name="app_settings_client_pk_snack">Your private key has been regenerated.</string>
-    <string name="app_settings_database_reset_snack">Your list of remembered devices have been cleared.</string>
-    <string name="pair_landing_discover_text">The discovered devices list shows a list of devices that have been discovered with mDNS and can be paired with.</string>
-    <string name="title_pairing_landing">Pairing</string>
-    <string name="pair_device_error_username_empty">Username cannot be empty</string>
-    <string name="pair_device_error_username_invalid">Invalid username</string>
-    <string name="pair_device_error_friendlyname_empty">Friendly name cannot be empty</string>
-    <string name="pair_new_empty_card">No devices have been discovered on the local network through mDNS. If your device is turned on and has mDNS enabled, you may have to wait a bit for it to show up.</string>
-    <string name="device_failed_unknown">Failed to connect for some unknown reason.</string>
-    <string name="failed_reconnect">Failed to reconnect!</string>
 </resources>
