@@ -81,6 +81,7 @@ private class PairDeviceViewModel(
     private lateinit var listener: ConnectionEventListener
     private lateinit var handle: ConnectionHandle
     private val iam = IamUtil.create()
+    private var observer: Observer<NabtoConnectionState>? = null
 
     private val _pairingResult = MutableLiveData<PairingResult>()
     val pairingResult: LiveData<PairingResult>
@@ -225,7 +226,7 @@ private class PairDeviceViewModel(
             listener = ConnectionEventListener { event, _ ->
                 when (event) {
                     NabtoConnectionEvent.CONNECTED -> {
-                        viewModelScope.launch { pairAndUpdateDevice(username, friendlyName, displayName) }
+                        // viewModelScope.launch { pairAndUpdateDevice(username, friendlyName, displayName) }
                     }
                     NabtoConnectionEvent.DEVICE_DISCONNECTED -> {
                         _pairingResult.postValue(PairingResult.Failed)
@@ -240,6 +241,23 @@ private class PairDeviceViewModel(
                 }
             }
             handle = manager.requestConnection(device, listener)
+            observer = Observer<NabtoConnectionState> {
+                if (it == NabtoConnectionState.CONNECTED) {
+                    pairAndUpdateDevice(username, friendlyName, displayName)
+                }
+            }
+            manager.getConnectionState(handle)?.let { stateLiveData ->
+                observer?.let {
+                    val newObserver = Observer<NabtoConnectionState> { state ->
+                        if (state == NabtoConnectionState.CONNECTED) {
+                            pairAndUpdateDevice(username, friendlyName, displayName)
+                        }
+                    }
+                    stateLiveData.removeObserver(it)
+                    stateLiveData.observeForever(newObserver)
+                    observer = newObserver
+                }
+            }
         }
     }
 
