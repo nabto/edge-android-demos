@@ -67,6 +67,33 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:padding="5dp"
+                        android:orientation="vertical" >
+                        <TextView
+                            android:id="@+id/dp_url_bar"
+                            android:layout_width="match_parent"
+                            android:layout_height="30dp"
+                            android:gravity="center_vertical"
+                            android:paddingStart="20dp"
+                            android:background="@drawable/back"
+                            android:layout_marginBottom="5dp"
+                            android:paddingEnd="20dp" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="400dp"
+                            android:padding="5dp"
+                            android:background="@drawable/back"
+                            android:orientation="vertical">
+                            <WebView
+                                android:id="@+id/dp_webview"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:paddingStart="16dp"
                         android:paddingEnd="16dp"
@@ -144,30 +171,6 @@
 
                             <TextView
                                 android:id="@+id/dp_info_proid"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                android:layout_weight="1"
-                                android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:minHeight="48dp"
-                            android:orientation="horizontal"
-                            android:paddingLeft="16dip"
-                            android:paddingRight="16dip">
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                android:layout_weight="1"
-                                android:text="RTSP URL" />
-
-                            <TextView
-                                android:id="@+id/dp_info_url"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"

@@ -3,6 +3,9 @@ package com.nabto.edge.tunnelhttpdemo
 import android.os.Bundle
 import android.util.Log
 import android.view.*
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuProvider
@@ -230,7 +233,7 @@ class DevicePageViewModel(
         Log.i(TAG, "Attempting to open tunnel service...")
         if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
             tunnel?.close()
-            tunnel = connectionManager.openTunnelService(handle, "rtsp")
+            tunnel = connectionManager.openTunnelService(handle, "http")
 
             tunnel?.let {
                 _connState.postValue(AppConnectionState.CONNECTED)
@@ -273,6 +276,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
     private lateinit var lostConnectionBar: View
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var loadingSpinner: View
+    private lateinit var webView: WebView
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -290,6 +294,26 @@ class DevicePageFragment : Fragment(), MenuProvider {
         swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
         lostConnectionBar = view.findViewById(R.id.dp_lost_connection_bar)
         loadingSpinner =  view.findViewById(R.id.dp_loading)
+
+        webView = view.findViewById(R.id.dp_webview)
+
+        val urlText = view.findViewById<TextView>(R.id.dp_url_bar)
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
+                view?.loadUrl(request?.url.toString())
+                return false
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                urlText.text = url
+                super.doUpdateVisitedHistory(view, url, isReload)
+            }
+        }
+
+        savedInstanceState?.let { webView.restoreState(it) }
 
         model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
         model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
@@ -312,6 +336,17 @@ class DevicePageFragment : Fragment(), MenuProvider {
             //        ViewModel that lets you set the title.
             (requireActivity() as AppCompatActivity).supportActionBar?.title = device.friendlyName
         })
+
+        model.tunnelPort.observe(viewLifecycleOwner, Observer { port ->
+            if (savedInstanceState == null) {
+                webView.loadUrl("http://127.0.0.1:${port}/")
+            }
+        })
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        webView.saveState(outState)
     }
 
     private fun refresh() {

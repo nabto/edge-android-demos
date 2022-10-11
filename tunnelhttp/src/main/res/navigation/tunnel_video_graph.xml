@@ -24,7 +24,7 @@
         <argument android:name="deviceId" />
         <fragment
             android:id="@+id/devicePageFragment"
-            android:name="com.nabto.edge.tunnelvideodemo.DevicePageFragment"
+            android:name="com.nabto.edge.tunnelhttpdemo.DevicePageFragment"
             tools:layout="@layout/fragment_device_page">
         </fragment>
     </navigation>
