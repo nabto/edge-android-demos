@@ -19,6 +19,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.nabto.edge.iamutil.IamException
 import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.awaitIsCurrentUserPaired
@@ -161,6 +162,7 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
         val title: TextView = view.findViewById(R.id.home_device_item_title)
         val status: TextView = view.findViewById(R.id.home_device_item_subtitle)
         val connectionStatusView: ImageView = view.findViewById(R.id.home_device_item_connection)
+        val progressBar: CircularProgressIndicator = view.findViewById(R.id.home_device_item_loading)
     }
 
     private var dataSet: List<HomeViewModel.HomeDeviceItem> = listOf()
@@ -185,19 +187,26 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
         holder.view.setOnClickListener {
             it.findFragment<HomeFragment>().onDeviceClick(dataSet[position].device)
         }
-        val (color, icon) = when (dataSet[position].status) {
+        val status = dataSet[position].status
+        val (color, icon) = when (status) {
             HomeDeviceItemStatus.ONLINE -> R.color.green to R.drawable.ic_baseline_check_circle
             HomeDeviceItemStatus.UNPAIRED -> R.color.yellow to R.drawable.ic_baseline_lock
             HomeDeviceItemStatus.CONNECTING -> R.color.red to R.drawable.ic_baseline_warning
             HomeDeviceItemStatus.OFFLINE -> R.color.red to R.drawable.ic_baseline_warning
         }
-        holder.connectionStatusView.setImageResource(icon)
-        holder.connectionStatusView.setColorFilter(
-            ContextCompat.getColor(
-                holder.view.context,
-                color
+
+        if (status == HomeDeviceItemStatus.CONNECTING) {
+            holder.connectionStatusView.swapWith(holder.progressBar)
+        } else {
+            holder.progressBar.swapWith(holder.connectionStatusView)
+            holder.connectionStatusView.setImageResource(icon)
+            holder.connectionStatusView.setColorFilter(
+                ContextCompat.getColor(
+                    holder.view.context,
+                    color
+                )
             )
-        )
+        }
     }
 
     override fun getItemCount() = dataSet.size

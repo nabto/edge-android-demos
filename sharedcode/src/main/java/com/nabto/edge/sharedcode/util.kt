@@ -76,3 +76,11 @@ fun NavController.navigateAndPopUpToRoute(route: String, inclusive: Boolean = fa
         popUpTo(id) { this.inclusive = inclusive }
     })
 }
+
+/**
+ * Convenience function. Changes the view's visibility to GONE and changes other's view to VISIBLE.
+ */
+fun View.swapWith(other: View) {
+    this.visibility = View.GONE
+    other.visibility = View.VISIBLE
+}
