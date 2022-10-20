@@ -167,11 +167,13 @@ class DevicePageViewModel(
                 val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
                 _currentUser.postValue(user)
             } catch (e: IamException) {
+                Log.w(TAG, "Startup job received ${e.message}")
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: NabtoRuntimeException) {
-                Log.i(TAG, e.toString())
+                Log.w(TAG, "Startup job received ${e.message}")
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: CancellationException) {
+                Log.w(TAG, "Startup job received CancellationException ${e.message}")
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             }
         }
@@ -196,11 +198,13 @@ class DevicePageViewModel(
                 } else {
                     _connEvent.postEvent(AppConnectionEvent.FAILED_RECONNECT)
                 }
+                _connState.postValue(AppConnectionState.DISCONNECTED)
             }
 
             NabtoConnectionEvent.CLOSED -> {
                 updateLoopJob?.cancel()
                 updateLoopJob = null
+                _connState.postValue(AppConnectionState.DISCONNECTED)
             }
 
             NabtoConnectionEvent.PAUSED -> {

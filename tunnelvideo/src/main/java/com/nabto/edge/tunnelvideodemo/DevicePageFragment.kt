@@ -88,7 +88,7 @@ class DevicePageViewModel(
     private val _device = MutableLiveData<Device>()
 
     private var isPaused = false
-    private var updateLoopJob: Job? = null
+    private var startupJob: Job? = null
     private lateinit var handle: ConnectionHandle
 
     private var tunnel: TcpTunnel? = null
@@ -148,7 +148,7 @@ class DevicePageViewModel(
     private fun startup() {
         isPaused = false
 
-        updateLoopJob = viewModelScope.launch {
+        startupJob = viewModelScope.launch {
             val iam = IamUtil.create()
 
             try {
@@ -176,12 +176,13 @@ class DevicePageViewModel(
                 val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
                 _currentUser.postValue(user)
             } catch (e: IamException) {
+                Log.w(TAG, "Startub job received ${e.message}")
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: NabtoRuntimeException) {
-                Log.i(TAG, e.toString())
+                Log.w(TAG, "Startup job received ${e.message}")
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: CancellationException) {
-                _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
+                Log.w(TAG, "Startup job received CancellationException: ${e.message}")
             }
         }
     }
@@ -194,8 +195,8 @@ class DevicePageViewModel(
             }
 
             NabtoConnectionEvent.DEVICE_DISCONNECTED -> {
-                updateLoopJob?.cancel()
-                updateLoopJob = null
+                startupJob?.cancel()
+                startupJob = null
                 _connState.postValue(AppConnectionState.DISCONNECTED)
             }
 
@@ -205,11 +206,13 @@ class DevicePageViewModel(
                 } else {
                     _connEvent.postEvent(AppConnectionEvent.FAILED_RECONNECT)
                 }
+                _connState.postValue(AppConnectionState.DISCONNECTED)
             }
 
             NabtoConnectionEvent.CLOSED -> {
-                updateLoopJob?.cancel()
-                updateLoopJob = null
+                startupJob?.cancel()
+                startupJob = null
+                _connState.postValue(AppConnectionState.DISCONNECTED)
             }
 
             NabtoConnectionEvent.PAUSED -> {

@@ -242,11 +242,13 @@ class DevicePageViewModel(
 
                 updateLoop()
             } catch (e: IamException) {
+                Log.w(TAG, "Update loop received ${e.message}")
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: NabtoRuntimeException) {
+                Log.w(TAG, "Update loop received ${e.message}")
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: CancellationException) {
-                _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
+                Log.w(TAG, "Update loop was by CancellationException: ${e.message}")
             }
         }
     }
@@ -270,11 +272,13 @@ class DevicePageViewModel(
                 } else {
                     _connEvent.postEvent(AppConnectionEvent.FAILED_RECONNECT)
                 }
+                _connState.postValue(AppConnectionState.DISCONNECTED)
             }
 
             NabtoConnectionEvent.CLOSED -> {
                 updateLoopJob?.cancel()
                 updateLoopJob = null
+                _connState.postValue(AppConnectionState.DISCONNECTED)
             }
 
             NabtoConnectionEvent.PAUSED -> {
