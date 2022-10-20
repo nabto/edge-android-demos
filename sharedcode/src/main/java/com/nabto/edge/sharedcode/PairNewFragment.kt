@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.fragment.app.findFragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
@@ -18,8 +19,8 @@ import org.koin.android.ext.android.inject
 class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.ViewHolder>() {
     class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
         lateinit var device: Device
-        val title: TextView = view.findViewById(R.id.home_device_item_title)
-        val status: TextView = view.findViewById(R.id.home_device_item_subtitle)
+        val title: TextView = view.findViewById(R.id.pairing_list_item_title)
+        val status: TextView = view.findViewById(R.id.pairing_list_item_subtitle)
     }
 
     private var dataSet: List<Device> = listOf()
@@ -34,7 +35,7 @@ class PairNewDeviceListAdapter : RecyclerView.Adapter<PairNewDeviceListAdapter.V
         viewType: Int
     ): ViewHolder {
         val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.home_device_list_item, parent, false)
+            .inflate(R.layout.pairing_list_item, parent, false)
         return ViewHolder(view)
     }
 
@@ -74,8 +75,9 @@ class PairNewFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val recycler = view.findViewById<RecyclerView>(R.id.pn_recycler)
+        val layoutManager = LinearLayoutManager(activity)
         recycler.adapter = deviceListAdapter
-        recycler.layoutManager = LinearLayoutManager(activity)
+        recycler.layoutManager = layoutManager
 
         val emptyCard = view.findViewById<View>(R.id.pair_new_empty_layout)
 
@@ -87,6 +89,12 @@ class PairNewFragment : Fragment() {
             }
             deviceListAdapter.submitDeviceList(devices)
         }
+
+        val dividerItemDecoration = DividerItemDecoration(
+            recycler.context,
+            layoutManager.orientation
+        )
+        recycler.addItemDecoration(dividerItemDecoration)
     }
 
     fun onDeviceClick(mdnsDevice: Device) {
