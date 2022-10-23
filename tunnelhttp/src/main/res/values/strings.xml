@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nabto Edge HTTP</string>
+    <string name="app_name">Edge HTTP</string>
     <string name="device_page_failed_to_connect">Failed to connect to device</string>
     <string name="device_page_lost_connection">LOST CONNECTION TO DEVICE</string>
     <string name="device_page_incorrect_app">Failed to connect, device is not an http tunnel.</string>

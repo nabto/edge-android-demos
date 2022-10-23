@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nabto Edge Thermostat</string>
+    <string name="app_name">Edge Thermostat</string>
     <string name="device_page_failed_to_connect">Failed to connect to device</string>
     <string name="device_page_lost_connection">LOST CONNECTION TO DEVICE</string>
     <string name="device_page_power_switch_label">Thermostat active</string>
