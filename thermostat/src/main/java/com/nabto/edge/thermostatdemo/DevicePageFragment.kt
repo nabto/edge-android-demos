@@ -561,12 +561,12 @@ class DevicePageFragment : Fragment(), MenuProvider {
         model.connectionState.observe(viewLifecycleOwner, Observer {
             when (it) {
                 AppConnectionState.INITIAL_CONNECTING -> {
-                    swipeRefreshLayout.isEnabled = false
+                    swipeRefreshLayout.visibility = View.INVISIBLE
                     initialConnectSpinner.visibility = View.VISIBLE
                     setInteractableViewsEnabled(false)
                 }
                 AppConnectionState.CONNECTED -> {
-                    swipeRefreshLayout.isEnabled = true
+                    swipeRefreshLayout.visibility = View.VISIBLE
                     initialConnectSpinner.visibility = View.GONE
                     lostConnectionBar.visibility = View.GONE
                     setInteractableViewsEnabled(true)
