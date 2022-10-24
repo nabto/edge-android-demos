@@ -10,7 +10,7 @@ android {
         applicationId = "com.nabto.edge.tunnelhttpdemo"
         minSdk = 24
         targetSdk = 32
-        versionCode = 1
+        versionCode = 10
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
