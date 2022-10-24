@@ -26,6 +26,10 @@ import kotlinx.serialization.cbor.Cbor
 import org.koin.android.ext.android.inject
 import kotlin.math.roundToInt
 import com.nabto.edge.sharedcode.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import java.time.Duration
+import java.time.Instant
 
 /**
  * Enum that represent the states that the thermostat can be in
@@ -130,38 +134,21 @@ class DevicePageViewModel(
     private val appStateCoap = CoapPath("GET", "/thermostat")
 
     private var lastClientUpdate = System.nanoTime()
-    private val _serverState: MutableLiveData<AppState> = MutableLiveData()
-    private val _clientState = MutableLiveData<AppState>()
+    private val _deviceState = MutableLiveData<AppState>()
     private val _connState: MutableLiveData<AppConnectionState> = MutableLiveData(AppConnectionState.INITIAL_CONNECTING)
     private val _connEvent: MutableLiveEvent<AppConnectionEvent> = MutableLiveEvent()
     private val _currentUser: MutableLiveData<IamUser> = MutableLiveData()
     private val _device = MutableLiveData<Device>()
 
-    private var isPaused = false
+    private var pauseState = MutableStateFlow(false)
     private var updateLoopJob: Job? = null
     private lateinit var handle: ConnectionHandle
 
     // how many times per second should we request a state update from the device?
-    private val updatesPerSecond = 10.0
+    private val updatesPerSecond = 2
 
-    /**
-     * serverState is a LiveData object that holds an AppState that was recently retrieved
-     * from the device. The contained AppState is not shown to the user directly but is
-     * merged with clientState whenever the user is not directly interacting with the UI.
-     */
-    val serverState: LiveData<AppState>
-        get() = _serverState
-
-    /**
-     * clientState is a LiveData object that holds the AppState data that the DevicePageFragment
-     * uses for updating UI. clientState is updated whenever the user interacts with the UI
-     * and is also updated from the serverState LiveData whenever the user is not interacting.
-     *
-     * This is to allow for the UI to represent the "latest" state of the device without
-     * impacting user experience by programmatically changing UI when the user is interacting.
-     */
-    val clientState: LiveData<AppState>
-        get() = _clientState
+    val deviceState: LiveData<AppState>
+        get() = _deviceState
 
     /**
      * connectionState contains the current state of the connection that the DevicePageFragment
@@ -193,7 +180,7 @@ class DevicePageViewModel(
             val dao = database.deviceDao()
             val dev = withContext(Dispatchers.IO) { dao.get(productId, deviceId) }
             _device.postValue(dev)
-            handle = connectionManager.requestConnection(dev) { event, _ -> onConnectionChanged(event) }
+            handle = connectionManager.requestConnection(dev) { event, _ -> viewModelScope.launch { onConnectionChanged(event) } }
             if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
                 // We're already connected from the home page.
                 startup()
@@ -208,9 +195,8 @@ class DevicePageViewModel(
     }
 
     private fun startup() {
-        isPaused = false
-
         updateLoopJob = viewModelScope.launch {
+            pauseState.emit(false)
             val iam = IamUtil.create()
 
             try {
@@ -229,8 +215,7 @@ class DevicePageViewModel(
                     return@launch
                 }
 
-                val appState = getAppStateFromDevice()
-                _clientState.postValue(appState)
+                updateDeviceState()
 
                 if (_connState.value == AppConnectionState.DISCONNECTED) {
                     _connEvent.postEvent(AppConnectionEvent.RECONNECTED)
@@ -253,7 +238,7 @@ class DevicePageViewModel(
         }
     }
 
-    private fun onConnectionChanged(state: NabtoConnectionEvent) {
+    private suspend fun onConnectionChanged(state: NabtoConnectionEvent) {
         Log.i(TAG, "Device connection state changed to: $state")
         when (state) {
             NabtoConnectionEvent.CONNECTED -> {
@@ -282,43 +267,50 @@ class DevicePageViewModel(
             }
 
             NabtoConnectionEvent.PAUSED -> {
-                isPaused = true
+                pauseState.emit(true)
             }
 
             NabtoConnectionEvent.UNPAUSED -> {
-                isPaused = false
+                pauseState.emit(false)
             }
             else -> {}
         }
     }
 
+    private suspend fun updateDeviceState(): Boolean {
+        val coap = connectionManager.createCoap(handle, appStateCoap.method, appStateCoap.path)
+
+        try {
+            coap.awaitExecute()
+        } catch (e: NabtoRuntimeException) {
+            Log.w(TAG, "Coap execute failed with $e")
+            return false
+        }
+
+        val payload = coap.responsePayload
+        val status = coap.responseStatusCode
+
+        if (status != 205) {
+            Log.w(TAG, "Coap execute got status code $status")
+            return false
+        }
+
+        val state = decodeAppStateFromCBOR(payload)
+        _deviceState.postValue(state)
+        return true
+    }
+
     private suspend fun updateLoop() {
-        withContext(Dispatchers.IO) {
-            while (true) {
-                if (isPaused) {
-                    // the device is still connected but we need to stop querying it
-                    delay(500)
-                    continue
-                }
-                val state = getAppStateFromDevice()
-                if (state.valid) {
-                    _serverState.postValue(state)
-                }
-
-                // we wait until 3 seconds have passed since the user last changed something before programmatically changing values
-                val currentTime = System.nanoTime()
-                val guardTime = 1e+9 * 3
-                if (currentTime > (lastClientUpdate + guardTime)) {
-                    val merged = state.copy(temperature = _clientState.value?.temperature ?: 0.0)
-                    if (merged != _clientState.value) {
-                        _clientState.postValue(state)
-                    }
-                }
-
-                // delay until the next update is needed
-                val delayTime = (1.0 / updatesPerSecond * 1000.0).toLong()
-                delay(delayTime)
+        while (true) {
+            // Suspend coroutine until pauseState is false.
+            if (pauseState.value) {
+                pauseState.first { !it }
             }
+
+            if (!updateDeviceState()) continue
+
+            val delayTime = (1.0 / updatesPerSecond.toDouble() * 1000.0).toLong()
+            delay(delayTime)
         }
     }
 
@@ -352,7 +344,7 @@ class DevicePageViewModel(
     fun setPower(toggled: Boolean) {
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
-            safeCall({}) {
+            safeCall(Unit) {
                 val coap = connectionManager.createCoap(handle, powerCoap.method, powerCoap.path)
                 val cbor = Cbor.encodeToByteArray(toggled)
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
@@ -360,11 +352,6 @@ class DevicePageViewModel(
                 if (coap.responseStatusCode != 204) {
                     _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
                 }
-            }
-            _clientState.value?.let {
-                val state = it.copy()
-                state.power = toggled
-                _clientState.postValue(state)
             }
         }
     }
@@ -375,7 +362,7 @@ class DevicePageViewModel(
     fun setMode(mode: AppMode) {
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
-            safeCall({}) {
+            safeCall(Unit) {
                 val coap = connectionManager.createCoap(handle, modeCoap.method, modeCoap.path)
                 val cbor = Cbor.encodeToByteArray(mode.string)
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
@@ -383,11 +370,6 @@ class DevicePageViewModel(
                 if (coap.responseStatusCode != 204) {
                     _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
                 }
-            }
-            _clientState.value?.let {
-                val state = it.copy()
-                state.mode = mode
-                _clientState.postValue(state)
             }
         }
     }
@@ -398,7 +380,7 @@ class DevicePageViewModel(
     fun setTarget(target: Double) {
         viewModelScope.launch {
             lastClientUpdate = System.nanoTime()
-            safeCall({}) {
+            safeCall(Unit) {
                 val coap = connectionManager.createCoap(handle, targetCoap.method, targetCoap.path)
                 val cbor = Cbor.encodeToByteArray(target)
                 coap.setRequestPayload(Coap.ContentFormat.APPLICATION_CBOR, cbor)
@@ -407,29 +389,7 @@ class DevicePageViewModel(
                     _connEvent.postEvent(AppConnectionEvent.FAILED_TO_UPDATE)
                 }
             }
-            _clientState.value?.let {
-                val state = it.copy()
-                state.target = target
-                _clientState.postValue(state)
-            }
         }
-    }
-
-    private suspend fun getAppStateFromDevice(): AppState {
-        val invalidState = AppState(AppMode.COOL, false, 0.0, 0.0, false)
-        val state = safeCall(invalidState) {
-            val coap = connectionManager.createCoap(handle, appStateCoap.method, appStateCoap.path)
-            coap.awaitExecute()
-            val data = coap.responsePayload
-            val statusCode = coap.responseStatusCode
-
-            if (statusCode != 205) {
-                return@safeCall invalidState
-            }
-
-            return@safeCall decodeAppStateFromCBOR(data)
-        }
-        return state
     }
 
     override fun onCleared() {
@@ -462,17 +422,17 @@ class DevicePageFragment : Fragment(), MenuProvider {
         )
     }
 
-    // we need this to disable programmatic update of the slider when the user is interacting
-    private var isTouchingTemperatureSlider = false
+    private val waitSeconds = 10L
+    private var timeSinceLastUserInteraction = Instant.now().minusSeconds(waitSeconds)
 
-    private lateinit var mainLayout: View
-    private lateinit var lostConnectionBar: View
-    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
-    private lateinit var loadingSpinner: View
-    private lateinit var temperatureView: TextView
-    private lateinit var modeSpinnerView: Spinner
-    private lateinit var powerSwitchView: SwitchMaterial
-    private lateinit var targetSliderView: Slider
+    private fun recordUserAction() {
+        timeSinceLastUserInteraction = Instant.now()
+    }
+
+    private fun isProgrammaticUpdateAllowed(): Boolean {
+        val elapsed = Duration.between(timeSinceLastUserInteraction, Instant.now())
+        return elapsed.seconds >= waitSeconds
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -486,48 +446,33 @@ class DevicePageFragment : Fragment(), MenuProvider {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
-        mainLayout = view.findViewById(R.id.dp_main)
-        swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
-        lostConnectionBar = view.findViewById(R.id.dp_lost_connection_bar)
-        loadingSpinner =  view.findViewById(R.id.dp_loading)
-        temperatureView = view.findViewById(R.id.dp_temperature)
-        modeSpinnerView = view.findViewById(R.id.dp_mode_spinner)
-        powerSwitchView = view.findViewById(R.id.dp_power_switch)
-        targetSliderView = view.findViewById(R.id.dp_target_slider)
+        val initialConnectSpinner: View = view.findViewById(R.id.dp_loading)
+        val lostConnectionBar: View = view.findViewById(R.id.dp_lost_connection_bar)
+        val swipeRefreshLayout: SwipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
 
-        model.clientState.observe(viewLifecycleOwner, Observer { state -> onStateChanged(view, state) })
-        model.serverState.observe(viewLifecycleOwner, Observer { state ->
-            temperatureView.text = getString(R.string.temperature_format, state.temperature)
-        })
+        val powerSwitchView: SwitchMaterial = view.findViewById(R.id.dp_power_switch)
+        val targetSliderView: Slider = view.findViewById(R.id.dp_target_slider)
+        val targetTextView: TextView = view.findViewById(R.id.dp_target_temperature)
+        val modeSpinnerView: Spinner = view.findViewById(R.id.dp_mode_spinner)
 
-        val targetTextView = view.findViewById<TextView>(R.id.dp_target_temperature)
-        targetTextView.text = getString(R.string.target_format, targetSliderView.value.roundToInt())
-        targetSliderView.addOnChangeListener { slider, value, fromUser ->
-            targetTextView.text = getString(R.string.target_format, value.roundToInt())
+        var userInteractedWithSpinner = false
+
+        fun setSpinnerSelection(position: Int) {
+            userInteractedWithSpinner = false
+            modeSpinnerView.setSelection(position)
         }
 
-        model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
-        model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
-
-        swipeRefreshLayout.setOnRefreshListener {
-            refresh()
+        fun setInteractableViewsEnabled(enabled: Boolean) {
+            val views = listOf(
+                powerSwitchView,
+                targetSliderView,
+                targetTextView,
+                modeSpinnerView
+            )
+            views.forEach { it.isEnabled = enabled }
         }
 
-        model.device.observe(viewLifecycleOwner, Observer { device ->
-            view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
-            view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
-            view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
-
-            // Slightly hacky way of programmatically setting toolbar title
-            // @TODO: A more "proper" way to do it could be to have an activity bound
-            //        ViewModel that lets you set the title.
-            (requireActivity() as AppCompatActivity).supportActionBar?.title = device.friendlyName
-        })
-
-        model.currentUser.observe(viewLifecycleOwner, Observer {
-            view.findViewById<TextView>(R.id.dp_info_userid).text = it.username
-        })
-
+        // ArrayAdapter for modes spinner
         ArrayAdapter.createFromResource(
             requireContext(),
             R.array.modes_array,
@@ -537,128 +482,139 @@ class DevicePageFragment : Fragment(), MenuProvider {
             modeSpinnerView.adapter = adapter
         }
 
-        powerSwitchView.setOnClickListener {
-            model.setPower(powerSwitchView.isChecked)
-        }
 
-        modeSpinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                if (pos >= 0 && pos < AppMode.values().size) {
-                    val mode = AppMode.values()[pos]
-                    model.setMode(mode)
+        // Initialize various UI listeners
+        run {
+            // Listener for when the target temperature slider changes
+            val format = R.string.target_format
+            targetTextView.text = getString(format, targetSliderView.value.roundToInt())
+            targetSliderView.addOnChangeListener { _, value, fromUser ->
+                targetTextView.text = getString(R.string.target_format, value.roundToInt())
+                if (fromUser) {
+                    recordUserAction()
                 }
             }
 
-            override fun onNothingSelected(parent: AdapterView<*>?) { }
+            // Swipe down to call refresh()
+            swipeRefreshLayout.setOnRefreshListener { refresh() }
+
+            // Listeners for UI widgets...
+            powerSwitchView.setOnCheckedChangeListener { _, isChecked ->
+                model.setPower(isChecked)
+                recordUserAction()
+            }
+
+            targetSliderView.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+                override fun onStartTrackingTouch(slider: Slider) {
+                    recordUserAction()
+                }
+                override fun onStopTrackingTouch(slider: Slider) {
+                    model.setTarget(slider.value.toDouble())
+                    recordUserAction()
+                }
+            })
+
+            modeSpinnerView.setOnTouchListener { view, motionEvent ->
+                userInteractedWithSpinner = true
+                view.performClick()
+                false
+            }
+            modeSpinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
+                    if (!userInteractedWithSpinner) return
+                    if (pos >= 0 && pos < AppMode.values().size) {
+                        val mode = AppMode.values()[pos]
+                        model.setMode(mode)
+                        recordUserAction()
+                    }
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) { }
+            }
         }
 
-        targetSliderView.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
-            override fun onStartTrackingTouch(slider: Slider) {
-                isTouchingTemperatureSlider = true
-            }
-
-            override fun onStopTrackingTouch(slider: Slider) {
-                model.setTarget(slider.value.toDouble())
-                isTouchingTemperatureSlider = false
-            }
-
+        // Update the static text fields and toolbar title
+        model.device.observe(viewLifecycleOwner, Observer {  device ->
+            view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
+            view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
+            view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
+            (requireActivity() as AppCompatActivity).supportActionBar?.title = device.friendlyName
         })
+
+        model.currentUser.observe(viewLifecycleOwner, Observer {
+            view.findViewById<TextView>(R.id.dp_info_userid).text = it.username
+        })
+
+        model.deviceState.observe(viewLifecycleOwner, Observer { state ->
+            view.findViewById<TextView>(R.id.dp_temperature).text = getString(R.string.temperature_format, state.temperature)
+
+            if (isProgrammaticUpdateAllowed()) {
+                val min = targetSliderView.valueFrom
+                val max = targetSliderView.valueTo
+                targetSliderView.value = state.target.toFloat().coerceIn(min, max)
+
+                powerSwitchView.isChecked = state.power
+                setSpinnerSelection(state.mode.ordinal)
+            }
+        })
+
+        // We use this state to determine what the device page should look like
+        model.connectionState.observe(viewLifecycleOwner, Observer {
+            when (it) {
+                AppConnectionState.INITIAL_CONNECTING -> {
+                    swipeRefreshLayout.isEnabled = false
+                    initialConnectSpinner.visibility = View.VISIBLE
+                    setInteractableViewsEnabled(false)
+                }
+                AppConnectionState.CONNECTED -> {
+                    swipeRefreshLayout.isEnabled = true
+                    initialConnectSpinner.visibility = View.GONE
+                    lostConnectionBar.visibility = View.GONE
+                    setInteractableViewsEnabled(true)
+                }
+                AppConnectionState.DISCONNECTED -> {
+                    lostConnectionBar.visibility = View.VISIBLE
+                    setInteractableViewsEnabled(false)
+                }
+            }
+        })
+
+        // Device connection event handling
+        model.connectionEvent.observe(viewLifecycleOwner) {
+            when (it) {
+                AppConnectionEvent.RECONNECTED -> { swipeRefreshLayout.isRefreshing = false }
+
+                AppConnectionEvent.FAILED_RECONNECT -> {
+                    swipeRefreshLayout.isRefreshing = false
+                    view.snack(getString(R.string.failed_reconnect))
+                }
+
+                AppConnectionEvent.FAILED_INITIAL_CONNECT -> {
+                    view.snack(getString(R.string.device_page_failed_to_connect))
+                    findNavController().popBackStack()
+                }
+
+                AppConnectionEvent.FAILED_INCORRECT_APP -> {
+                    view.snack(getString(R.string.device_page_incorrect_app))
+                    findNavController().popBackStack()
+                }
+
+                AppConnectionEvent.FAILED_TO_UPDATE -> {
+                    view.snack(getString(R.string.device_page_failed_update))
+                }
+
+                AppConnectionEvent.FAILED_NOT_PAIRED -> {
+                    view.snack(getString(R.string.device_failed_not_paired))
+                    findNavController().popBackStack()
+                }
+
+                AppConnectionEvent.FAILED_UNKNOWN -> { }
+            }
+        }
     }
 
     private fun refresh() {
+        view?.findViewById<SwipeRefreshLayout>(R.id.dp_swiperefresh)?.isRefreshing = true
         model.tryReconnect()
-    }
-
-    private fun onStateChanged(view: View, state: AppState) {
-        if (isTouchingTemperatureSlider) return
-        powerSwitchView.isChecked = state.power
-        var target = state.target.toFloat()
-        val min = targetSliderView.valueFrom
-        val max = targetSliderView.valueTo
-        if (target > max) {
-            target = max
-            model.setTarget(target.toDouble())
-        } else if (target < min) {
-            target = min
-            model.setTarget(target.toDouble())
-        }
-        targetSliderView.value = target
-        modeSpinnerView.setSelection(state.mode.ordinal)
-    }
-
-    private fun onConnectionStateChanged(view: View, state: AppConnectionState) {
-        Log.i(TAG, "Connection state changed to $state")
-
-        fun setViewsEnabled(enable: Boolean) {
-            powerSwitchView.isEnabled = enable
-            targetSliderView.isEnabled = enable
-            modeSpinnerView.isEnabled = enable
-            temperatureView.isEnabled = enable
-        }
-
-        when (state) {
-            AppConnectionState.INITIAL_CONNECTING -> {
-                swipeRefreshLayout.visibility = View.INVISIBLE
-                loadingSpinner.visibility = View.VISIBLE
-                setViewsEnabled(false)
-            }
-
-            AppConnectionState.CONNECTED -> {
-                loadingSpinner.visibility = View.INVISIBLE
-                lostConnectionBar.visibility = View.GONE
-                swipeRefreshLayout.visibility = View.VISIBLE
-                setViewsEnabled(true)
-
-                lostConnectionBar.animate()
-                    .translationY(-lostConnectionBar.height.toFloat())
-                mainLayout.animate()
-                    .translationY(0f)
-            }
-
-            AppConnectionState.DISCONNECTED -> {
-                lostConnectionBar.visibility = View.VISIBLE
-                lostConnectionBar.animate()
-                    .translationY(0f)
-                mainLayout.animate()
-                    .translationY(lostConnectionBar.height.toFloat())
-                setViewsEnabled(false)
-            }
-        }
-    }
-
-    private fun onConnectionEvent(view: View, event: AppConnectionEvent) {
-        Log.i(TAG, "Received connection event $event")
-        when (event) {
-            AppConnectionEvent.RECONNECTED -> {
-                swipeRefreshLayout.isRefreshing = false
-            }
-
-            AppConnectionEvent.FAILED_RECONNECT -> {
-                swipeRefreshLayout.isRefreshing = false
-                view.snack(getString(R.string.failed_reconnect))
-            }
-
-            AppConnectionEvent.FAILED_INITIAL_CONNECT -> {
-                view.snack(getString(R.string.device_page_failed_to_connect))
-                findNavController().popBackStack()
-            }
-
-            AppConnectionEvent.FAILED_INCORRECT_APP -> {
-                view.snack(getString(R.string.device_page_incorrect_app))
-                findNavController().popBackStack()
-            }
-
-            AppConnectionEvent.FAILED_TO_UPDATE -> {
-                view.snack(getString(R.string.device_page_failed_update))
-            }
-
-            AppConnectionEvent.FAILED_NOT_PAIRED -> {
-                view.snack(getString(R.string.device_failed_not_paired))
-                findNavController().popBackStack()
-            }
-
-            AppConnectionEvent.FAILED_UNKNOWN -> { }
-         }
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -667,7 +623,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
         if (menuItem.itemId == R.id.action_device_refresh) {
-            swipeRefreshLayout.isRefreshing = true
             refresh()
             return true
         }
