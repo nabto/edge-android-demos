@@ -426,7 +426,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
             }
 
             AppConnectionEvent.FAILED_NO_SUCH_SERVICE -> {
-                view.snack("This tunnel device does not have an http service.")
+                view.snack(getString(R.string.device_failed_no_such_service))
             }
 
             AppConnectionEvent.FAILED_UNKNOWN -> { }
