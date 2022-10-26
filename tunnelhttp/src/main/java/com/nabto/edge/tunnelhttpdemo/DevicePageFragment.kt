@@ -14,6 +14,7 @@ import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.nabto.edge.client.ErrorCodes
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.TcpTunnel
 import com.nabto.edge.iamutil.IamException
@@ -60,7 +61,8 @@ enum class AppConnectionEvent {
     FAILED_INITIAL_CONNECT,
     FAILED_INCORRECT_APP,
     FAILED_UNKNOWN,
-    FAILED_NOT_PAIRED
+    FAILED_NOT_PAIRED,
+    FAILED_NO_SUCH_SERVICE
 }
 
 /**
@@ -233,12 +235,20 @@ class DevicePageViewModel(
         }
     }
 
-    suspend fun startTunnelService() {
+    private suspend fun startTunnelService() {
         Log.i(TAG, "Attempting to open tunnel service...")
         if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
             tunnel?.close()
-            tunnel = connectionManager.openTunnelService(handle, "http")
-
+            tunnel = try {
+                connectionManager.openTunnelService(handle, "http")
+            } catch (e: NabtoRuntimeException) {
+                if (e.errorCode.errorCode == ErrorCodes.NOT_FOUND) {
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_NO_SUCH_SERVICE)
+                } else {
+                    throw e
+                }
+                null
+            }
             tunnel?.let {
                 _connState.postValue(AppConnectionState.CONNECTED)
                 _tunnelPort.postValue(it.localPort)
@@ -413,6 +423,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
             AppConnectionEvent.FAILED_NOT_PAIRED -> {
                 view.snack(getString(R.string.device_failed_not_paired))
                 findNavController().popBackStack()
+            }
+
+            AppConnectionEvent.FAILED_NO_SUCH_SERVICE -> {
+                view.snack("This tunnel device does not have an http service.")
             }
 
             AppConnectionEvent.FAILED_UNKNOWN -> { }

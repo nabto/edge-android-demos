@@ -16,6 +16,7 @@ import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.source.rtsp.RtspMediaSource
 import com.google.android.exoplayer2.ui.StyledPlayerView
+import com.nabto.edge.client.ErrorCodes
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.TcpTunnel
 import com.nabto.edge.iamutil.IamException
@@ -64,7 +65,8 @@ enum class AppConnectionEvent {
     FAILED_INITIAL_CONNECT,
     FAILED_INCORRECT_APP,
     FAILED_UNKNOWN,
-    FAILED_NOT_PAIRED
+    FAILED_NOT_PAIRED,
+    FAILED_NO_SUCH_SERVICE
 }
 
 /**
@@ -245,7 +247,16 @@ class DevicePageViewModel(
         Log.i(TAG, "Attempting to open tunnel service...")
         if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
             tunnel?.close()
-            tunnel = connectionManager.openTunnelService(handle, "rtsp")
+            tunnel = try {
+                connectionManager.openTunnelService(handle, "rtsp")
+            } catch (e: NabtoRuntimeException) {
+                if (e.errorCode.errorCode == ErrorCodes.NOT_FOUND) {
+                    _connEvent.postEvent(AppConnectionEvent.FAILED_NO_SUCH_SERVICE)
+                } else {
+                    throw e
+                }
+                null
+            }
 
             tunnel?.let {
                 _connState.postValue(AppConnectionState.CONNECTED)
@@ -461,6 +472,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
             AppConnectionEvent.FAILED_NOT_PAIRED -> {
                 view.snack(getString(R.string.device_failed_not_paired))
                 findNavController().popBackStack()
+            }
+
+            AppConnectionEvent.FAILED_NO_SUCH_SERVICE -> {
+                view.snack("This tunnel device does not have an http service.")
             }
 
             AppConnectionEvent.FAILED_UNKNOWN -> { }
