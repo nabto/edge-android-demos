@@ -72,6 +72,7 @@
         <entry key="thermostat/src/main/res/layout/activity_main.xml" value="0.19375" />
         <entry key="thermostat/src/main/res/layout/fragment_app_settings.xml" value="0.19375" />
         <entry key="thermostat/src/main/res/layout/fragment_device_page.xml" value="0.19375" />
+        <entry key="tunnelhttp/src/main/res/drawable/ic_launcher_background.xml" value="0.2215" />
         <entry key="tunnelhttp/src/main/res/layout/activity_main.xml" value="0.18854166666666666" />
         <entry key="tunnelhttp/src/main/res/layout/fragment_device_page.xml" value="0.1828125" />
         <entry key="tunnelhttp/src/main/res/menu/menu_device.xml" value="0.1828125" />
