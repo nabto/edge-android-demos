@@ -27,6 +27,7 @@ import org.koin.android.ext.android.inject
 import kotlin.math.roundToInt
 import com.nabto.edge.sharedcode.*
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.Instant
@@ -50,7 +51,6 @@ data class AppState(
     var power: Boolean,
     var target: Double,
     var temperature: Double,
-    val valid: Boolean = true
 )
 
 internal fun decodeAppStateFromCBOR(cbor: ByteArray): AppState {
@@ -68,7 +68,6 @@ internal fun decodeAppStateFromCBOR(cbor: ByteArray): AppState {
         state.power,
         state.target,
         state.temperature,
-        true
     )
 }
 
@@ -409,6 +408,18 @@ class DevicePageViewModel(
 class DevicePageFragment : Fragment(), MenuProvider {
     private val TAG = this.javaClass.simpleName
 
+    lateinit var initialConnectSpinner: View
+    lateinit var lostConnectionBar: View
+    lateinit var swipeRefreshLayout: SwipeRefreshLayout
+
+    lateinit var powerSwitchView: SwitchMaterial
+    lateinit var targetSliderView: Slider
+    lateinit var targetTextView: TextView
+    lateinit var modeSpinnerView: Spinner
+
+    var userInteractedWithSpinner = false
+    var lastConnectionState: AppConnectionState? = null
+
     private val model: DevicePageViewModel by navGraphViewModels(R.id.device_graph) {
         val productId = arguments?.getString("productId") ?: ""
         val deviceId = arguments?.getString("deviceId") ?: ""
@@ -434,6 +445,71 @@ class DevicePageFragment : Fragment(), MenuProvider {
         return elapsed.seconds >= waitSeconds
     }
 
+    private fun setSpinnerSelection(position: Int) {
+        userInteractedWithSpinner = false
+        modeSpinnerView.setSelection(position)
+    }
+
+    private fun setInteractableViewsEnabled(enabled: Boolean) {
+        val views = listOf(
+            powerSwitchView,
+            targetSliderView,
+            targetTextView,
+            modeSpinnerView
+        )
+        views.forEach { it.isEnabled = enabled }
+    }
+
+    private fun setupUI() {
+        // Initialize various UI listeners
+
+        // Listener for when the target temperature slider changes
+        val format = R.string.target_format
+        targetTextView.text = getString(format, targetSliderView.value.roundToInt())
+        targetSliderView.addOnChangeListener { _, value, fromUser ->
+            targetTextView.text = getString(R.string.target_format, value.roundToInt())
+            if (fromUser) {
+                recordUserAction()
+            }
+        }
+
+        // Swipe down to call refresh()
+        swipeRefreshLayout.setOnRefreshListener { refresh() }
+
+        // Listeners for UI widgets...
+        powerSwitchView.setOnCheckedChangeListener { _, isChecked ->
+            model.setPower(isChecked)
+            recordUserAction()
+        }
+
+        targetSliderView.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+            override fun onStartTrackingTouch(slider: Slider) {
+                recordUserAction()
+            }
+            override fun onStopTrackingTouch(slider: Slider) {
+                model.setTarget(slider.value.toDouble())
+                recordUserAction()
+            }
+        })
+
+        modeSpinnerView.setOnTouchListener { view, motionEvent ->
+            userInteractedWithSpinner = true
+            view.performClick()
+            false
+        }
+        modeSpinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
+                if (!userInteractedWithSpinner) return
+                if (pos >= 0 && pos < AppMode.values().size) {
+                    val mode = AppMode.values()[pos]
+                    model.setMode(mode)
+                    recordUserAction()
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) { }
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -446,31 +522,14 @@ class DevicePageFragment : Fragment(), MenuProvider {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
-        val initialConnectSpinner: View = view.findViewById(R.id.dp_loading)
-        val lostConnectionBar: View = view.findViewById(R.id.dp_lost_connection_bar)
-        val swipeRefreshLayout: SwipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
+        initialConnectSpinner = view.findViewById(R.id.dp_loading)
+        lostConnectionBar = view.findViewById(R.id.dp_lost_connection_bar)
+        swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
 
-        val powerSwitchView: SwitchMaterial = view.findViewById(R.id.dp_power_switch)
-        val targetSliderView: Slider = view.findViewById(R.id.dp_target_slider)
-        val targetTextView: TextView = view.findViewById(R.id.dp_target_temperature)
-        val modeSpinnerView: Spinner = view.findViewById(R.id.dp_mode_spinner)
-
-        var userInteractedWithSpinner = false
-
-        fun setSpinnerSelection(position: Int) {
-            userInteractedWithSpinner = false
-            modeSpinnerView.setSelection(position)
-        }
-
-        fun setInteractableViewsEnabled(enabled: Boolean) {
-            val views = listOf(
-                powerSwitchView,
-                targetSliderView,
-                targetTextView,
-                modeSpinnerView
-            )
-            views.forEach { it.isEnabled = enabled }
-        }
+        powerSwitchView = view.findViewById(R.id.dp_power_switch)
+        targetSliderView = view.findViewById(R.id.dp_target_slider)
+        targetTextView = view.findViewById(R.id.dp_target_temperature)
+        modeSpinnerView = view.findViewById(R.id.dp_mode_spinner)
 
         // ArrayAdapter for modes spinner
         ArrayAdapter.createFromResource(
@@ -480,56 +539,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
         ).also { adapter ->
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             modeSpinnerView.adapter = adapter
-        }
-
-
-        // Initialize various UI listeners
-        run {
-            // Listener for when the target temperature slider changes
-            val format = R.string.target_format
-            targetTextView.text = getString(format, targetSliderView.value.roundToInt())
-            targetSliderView.addOnChangeListener { _, value, fromUser ->
-                targetTextView.text = getString(R.string.target_format, value.roundToInt())
-                if (fromUser) {
-                    recordUserAction()
-                }
-            }
-
-            // Swipe down to call refresh()
-            swipeRefreshLayout.setOnRefreshListener { refresh() }
-
-            // Listeners for UI widgets...
-            powerSwitchView.setOnCheckedChangeListener { _, isChecked ->
-                model.setPower(isChecked)
-                recordUserAction()
-            }
-
-            targetSliderView.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
-                override fun onStartTrackingTouch(slider: Slider) {
-                    recordUserAction()
-                }
-                override fun onStopTrackingTouch(slider: Slider) {
-                    model.setTarget(slider.value.toDouble())
-                    recordUserAction()
-                }
-            })
-
-            modeSpinnerView.setOnTouchListener { view, motionEvent ->
-                userInteractedWithSpinner = true
-                view.performClick()
-                false
-            }
-            modeSpinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                    if (!userInteractedWithSpinner) return
-                    if (pos >= 0 && pos < AppMode.values().size) {
-                        val mode = AppMode.values()[pos]
-                        model.setMode(mode)
-                        recordUserAction()
-                    }
-                }
-                override fun onNothingSelected(parent: AdapterView<*>?) { }
-            }
         }
 
         // Update the static text fields and toolbar title
@@ -569,13 +578,19 @@ class DevicePageFragment : Fragment(), MenuProvider {
                     swipeRefreshLayout.visibility = View.VISIBLE
                     initialConnectSpinner.visibility = View.GONE
                     lostConnectionBar.visibility = View.GONE
+                    if (lastConnectionState == AppConnectionState.INITIAL_CONNECTING) {
+                        setupUI()
+                    }
                     setInteractableViewsEnabled(true)
                 }
                 AppConnectionState.DISCONNECTED -> {
                     lostConnectionBar.visibility = View.VISIBLE
                     setInteractableViewsEnabled(false)
                 }
+                null -> { }
             }
+
+            lastConnectionState = it
         })
 
         // Device connection event handling
@@ -608,6 +623,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
                 }
 
                 AppConnectionEvent.FAILED_UNKNOWN -> { }
+
+                null -> { }
             }
         }
     }
