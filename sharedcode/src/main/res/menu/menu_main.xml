@@ -6,18 +6,4 @@
         android:iconTint="@color/black"
         android:title="@string/refresh"
         app:showAsAction="ifRoom"/>
-
-    <item
-        android:id="@+id/action_pair_new"
-        android:icon="@drawable/ic_baseline_add_48"
-        android:iconTint="@color/black"
-        android:title="@string/pair_device_button"
-        app:showAsAction="ifRoom" />
-
-    <item
-        android:id="@+id/action_settings"
-        android:icon="@drawable/ic_baseline_settings_48"
-        android:iconTint="@color/black"
-        android:title="App Settings"
-        app:showAsAction="ifRoom" />
 </menu>

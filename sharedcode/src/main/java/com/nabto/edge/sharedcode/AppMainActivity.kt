@@ -1,19 +1,21 @@
-package com.nabto.edge.tunnelhttpdemo
+package com.nabto.edge.sharedcode
 
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.bottomnavigation.BottomNavigationView
 
 /**
  * Single Activity that swaps between Fragments.
  */
-class MainActivity : AppCompatActivity() {
+class AppMainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.app_main_activity)
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         this.setSupportActionBar(toolbar)
@@ -23,5 +25,10 @@ class MainActivity : AppCompatActivity() {
         val navController = navHostFragment.navController
         setupActionBarWithNavController(navController)
         toolbar.setupWithNavController(navController)
+
+        val bottomMenu = findViewById<BottomNavigationView>(R.id.bottom_nav)
+        bottomMenu.setOnItemSelectedListener {
+            true
+        }
     }
 }

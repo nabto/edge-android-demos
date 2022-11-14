@@ -2,8 +2,7 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
             xmlns:app="http://schemas.android.com/apk/res-auto"
             xmlns:tools="http://schemas.android.com/tools"
-            android:id="@+id/video_player_graph"
-            app:route="app_graph"
+            android:id="@+id/app_nav"
             app:startDestination="@id/homeFragment">
 
     <include app:graph="@navigation/settings"/>
@@ -28,5 +27,4 @@
             tools:layout="@layout/fragment_device_page">
         </fragment>
     </navigation>
-
 </navigation>

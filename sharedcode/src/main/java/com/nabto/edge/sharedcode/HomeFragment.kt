@@ -28,132 +28,6 @@ import org.koin.android.ext.android.inject
 import com.nabto.edge.sharedcode.*
 
 /**
- * Enum to represent different connection states of devices in the home page list of devices.
- */
-enum class HomeDeviceItemStatus {
-    ONLINE,
-    CONNECTING,
-    OFFLINE,
-    UNPAIRED
-}
-
-class HomeViewModelFactory(
-    private val database: DeviceDatabase,
-    private val manager: NabtoConnectionManager
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return modelClass.getConstructor(
-            DeviceDatabase::class.java,
-            NabtoConnectionManager::class.java
-        ).newInstance(database, manager)
-    }
-}
-
-/**
- * ViewModel that interacts with [NabtoConnectionManager] to manage a list of connections
- * to devices on the device list in [HomeFragment].
- */
-class HomeViewModel(
-    private val database: DeviceDatabase,
-    private val manager: NabtoConnectionManager
-) : ViewModel() {
-    private val TAG = javaClass.simpleName
-
-    data class HomeDeviceItem(
-        val device: Device,
-        val status: HomeDeviceItemStatus
-    )
-
-    private val _deviceList = MutableLiveData<List<HomeDeviceItem>>()
-    val deviceList: LiveData<List<HomeDeviceItem>>
-        get() = _deviceList
-
-    private val connections = mutableMapOf<Device, ConnectionHandle>()
-    private val status = mutableMapOf<Device, HomeDeviceItemStatus>()
-
-    private var devices: List<Device> = listOf()
-
-    init {
-        viewModelScope.launch {
-            database.deviceDao().getAll().collect { devs ->
-                this@HomeViewModel.devices = devs
-                sync()
-            }
-        }
-    }
-
-    fun getStatus(dev: Device): HomeDeviceItemStatus {
-        return status.getOrDefault(dev, HomeDeviceItemStatus.OFFLINE)
-    }
-
-    fun sync() {
-        fun post() {
-            val list = devices.map {
-                HomeDeviceItem(it, status.getOrDefault(it, HomeDeviceItemStatus.OFFLINE))
-            }
-            _deviceList.postValue(list)
-        }
-
-        for (key in devices) {
-            status[key] = status[key] ?: HomeDeviceItemStatus.OFFLINE
-            connections[key] = connections[key] ?: manager.requestConnection(key) { event, handle ->
-                viewModelScope.launch {
-                    status[key] = when (event) {
-                        NabtoConnectionEvent.CONNECTING -> HomeDeviceItemStatus.CONNECTING
-                        NabtoConnectionEvent.CONNECTED -> {
-                            val iam = IamUtil.create()
-                            try {
-                                val paired =
-                                    iam.awaitIsCurrentUserPaired(manager.getConnection(handle))
-                                if (paired) {
-                                    HomeDeviceItemStatus.ONLINE
-                                } else {
-                                    HomeDeviceItemStatus.UNPAIRED
-                                }
-                            } catch (e: IamException) {
-                                Log.i(TAG, "Iam exception caught: $e")
-                                HomeDeviceItemStatus.OFFLINE
-                            }
-                        }
-                        NabtoConnectionEvent.PAUSED -> HomeDeviceItemStatus.ONLINE
-                        NabtoConnectionEvent.UNPAUSED -> HomeDeviceItemStatus.ONLINE
-                        NabtoConnectionEvent.FAILED_TO_CONNECT -> HomeDeviceItemStatus.OFFLINE
-                        NabtoConnectionEvent.DEVICE_DISCONNECTED -> HomeDeviceItemStatus.OFFLINE
-                        NabtoConnectionEvent.CLOSED -> HomeDeviceItemStatus.OFFLINE
-                    }
-                    post()
-                }
-            }
-        }
-        post()
-    }
-
-    fun reconnect() {
-        for ((_, handle) in connections) {
-            manager.reconnect(handle)
-        }
-    }
-
-    fun releaseAllExcept(dev: Device) {
-        for ((key, handle) in connections) {
-            if (key != dev) {
-                manager.releaseHandle(handle)
-            }
-        }
-        connections.clear()
-        status.clear()
-    }
-
-    fun release() {
-        for ((_, handle) in connections) {
-            manager.releaseHandle(handle)
-        }
-        connections.clear()
-        status.clear()
-    }
-}
-
-/**
  * RecyclerView Adapter for updating the views per item in the list.
  */
 class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
@@ -165,9 +39,9 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
         val progressBar: CircularProgressIndicator = view.findViewById(R.id.home_device_item_loading)
     }
 
-    private var dataSet: List<HomeViewModel.HomeDeviceItem> = listOf()
+    private var dataSet: List<DeviceBookmark> = listOf()
 
-    fun submitDeviceList(devices: List<HomeViewModel.HomeDeviceItem>) {
+    fun submitDeviceList(devices: List<DeviceBookmark>) {
         dataSet = devices
         notifyDataSetChanged()
     }
@@ -189,13 +63,13 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
         }
         val status = dataSet[position].status
         val (color, icon) = when (status) {
-            HomeDeviceItemStatus.ONLINE -> R.color.green to R.drawable.ic_baseline_check_circle
-            HomeDeviceItemStatus.UNPAIRED -> R.color.yellow to R.drawable.ic_baseline_lock
-            HomeDeviceItemStatus.CONNECTING -> R.color.red to R.drawable.ic_baseline_warning
-            HomeDeviceItemStatus.OFFLINE -> R.color.red to R.drawable.ic_baseline_warning
+            BookmarkStatus.ONLINE -> R.color.green to R.drawable.ic_baseline_check_circle
+            BookmarkStatus.UNPAIRED -> R.color.yellow to R.drawable.ic_baseline_lock
+            BookmarkStatus.CONNECTING -> R.color.red to R.drawable.ic_baseline_warning
+            BookmarkStatus.OFFLINE -> R.color.red to R.drawable.ic_baseline_warning
         }
 
-        if (status == HomeDeviceItemStatus.CONNECTING) {
+        if (status == BookmarkStatus.CONNECTING) {
             holder.connectionStatusView.swapWith(holder.progressBar)
         } else {
             holder.progressBar.swapWith(holder.connectionStatusView)
@@ -221,9 +95,7 @@ class HomeFragment : Fragment(), MenuProvider {
 
     private val database: DeviceDatabase by inject()
     private val manager: NabtoConnectionManager by inject()
-    private val model: HomeViewModel by viewModels {
-        HomeViewModelFactory(database, manager)
-    }
+    private val bookmarks: NabtoBookmarksRepository by inject()
     private val deviceListAdapter = DeviceListAdapter()
 
     override fun onCreateView(
@@ -247,7 +119,7 @@ class HomeFragment : Fragment(), MenuProvider {
             findNavController().navigate(AppRoute.pairingFlow())
         }
 
-        model.deviceList.observe(viewLifecycleOwner, Observer { devices ->
+        bookmarks.getDevices().observe(viewLifecycleOwner, Observer { devices ->
             deviceListAdapter.submitDeviceList(devices)
             view.findViewById<View>(R.id.home_empty_layout).visibility =
                 if (devices.isEmpty()) View.VISIBLE else View.GONE
@@ -260,15 +132,15 @@ class HomeFragment : Fragment(), MenuProvider {
         )
         recycler.addItemDecoration(dividerItemDecoration)
 
-        model.sync()
+        bookmarks.synchronize()
     }
 
     fun onDeviceClick(device: Device) {
-        if (model.getStatus(device) == HomeDeviceItemStatus.UNPAIRED) {
-            model.release()
+        if (bookmarks.getStatus(device) == BookmarkStatus.UNPAIRED) {
+            bookmarks.releaseAll()
             findNavController().navigate(AppRoute.pairDevice(device.productId, device.deviceId))
         } else {
-            model.releaseAllExcept(device)
+            bookmarks.releaseAllExcept(listOf(device))
             findNavController().navigate(AppRoute.appDevicePage(device.productId, device.deviceId))
         }
     }
@@ -278,20 +150,21 @@ class HomeFragment : Fragment(), MenuProvider {
     }
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+        /*
         if (menuItem.itemId == R.id.action_pair_new) {
             model.release()
             findNavController().navigate(AppRoute.pairingFlow())
             return true
         }
 
-        if (menuItem.itemId == R.id.action_device_refresh) {
-            model.reconnect()
-            return true
-        }
-
         if (menuItem.itemId == R.id.action_settings) {
             model.release()
             findNavController().navigate(AppRoute.settings())
+        }
+         */
+        if (menuItem.itemId == R.id.action_device_refresh) {
+            bookmarks.reconnect()
+            return true
         }
         return false
     }

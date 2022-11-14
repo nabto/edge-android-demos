@@ -11,7 +11,7 @@
     so that plain HTTP traffic can be tested against.
      -->
     <application
-        android:name=".NabtoAndroidApplication"
+        android:name=".TunnelHTTPApplication"
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -21,7 +21,7 @@
         android:theme="@style/Theme.NabtoDemo">
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.nabto.edge.sharedcode.AppMainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

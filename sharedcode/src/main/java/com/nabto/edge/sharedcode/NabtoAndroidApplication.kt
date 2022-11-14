@@ -1,15 +1,15 @@
-package com.nabto.edge.tunnelhttpdemo
+package com.nabto.edge.sharedcode
 
 import android.app.Application
 import androidx.room.Room
-import com.nabto.edge.client.*
-import kotlinx.coroutines.*
+import com.nabto.edge.client.NabtoClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
-import com.nabto.edge.sharedcode.*
 
 private fun appModule(client: NabtoClient, scanner: NabtoDeviceScanner, scope: CoroutineScope) =
     module {
@@ -26,17 +26,19 @@ private fun appModule(client: NabtoClient, scanner: NabtoDeviceScanner, scope: C
         single<NabtoConnectionManager> {
             NabtoConnectionManagerImpl(get(), client)
         }
+
+        single<NabtoBookmarksRepository> {
+            NabtoBookmarksRepositoryImpl(get(), get(), scope)
+        }
     }
 
-class NabtoAndroidApplication : Application() {
+open class NabtoAndroidApplication : Application() {
     private val nabtoClient: NabtoClient by lazy { NabtoClient.create(this) }
     private val scanner: NabtoDeviceScanner by lazy { NabtoDeviceScanner(nabtoClient) }
     private val applicationScope = CoroutineScope(SupervisorJob())
 
-    override fun onCreate() {
-        super.onCreate()
-        SetNabtoConfiguration(NabtoConfig)
-
+    fun initializeNabtoApplication(config: NabtoConfiguration) {
+        SetNabtoConfiguration(config)
         startKoin {
             androidLogger()
             androidContext(this@NabtoAndroidApplication)

@@ -31,7 +31,7 @@ interface NabtoRepository {
     fun getScannedDevices(): LiveData<List<Device>>
 
     /**
-     * Returns an application-wide CoroutineScope
+     * Returns an application-wide CoroutineScope.
      */
     fun getApplicationScope(): CoroutineScope
 
@@ -39,9 +39,12 @@ interface NabtoRepository {
      * Returns the display name of the user as LiveData.
      */
     fun getDisplayName(): LiveData<String>
+
+    /**
+     * Set the display name of the user.
+     */
     fun setDisplayName(displayName: String)
 }
-
 
 class NabtoRepositoryImpl(
     private val context: Context,
