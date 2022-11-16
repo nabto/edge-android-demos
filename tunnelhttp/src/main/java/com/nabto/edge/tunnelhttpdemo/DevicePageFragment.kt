@@ -273,7 +273,7 @@ class DevicePageViewModel(
 class DevicePageFragment : Fragment(), MenuProvider {
     private val TAG = this.javaClass.simpleName
 
-    private val model: DevicePageViewModel by navGraphViewModels(R.id.device_graph) {
+    private val model: DevicePageViewModel by navGraphViewModels(R.id.nav_device) {
         val productId = arguments?.getString("productId") ?: ""
         val deviceId = arguments?.getString("deviceId") ?: ""
         val connectionManager: NabtoConnectionManager by inject()

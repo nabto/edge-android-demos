@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/app_nav"
-    app:startDestination="@id/homeFragment">
+    app:startDestination="@id/nav_home">
 
-<include app:graph="@navigation/settings"/>
-<include app:graph="@navigation/pairing_flow" />
+    <include app:graph="@navigation/settings"/>
+    <include app:graph="@navigation/pairing_flow" />
+    <include app:graph="@navigation/home" />
 
-<fragment
-    android:id="@+id/homeFragment"
-    android:name="com.nabto.edge.sharedcode.HomeFragment"
-    android:label="@string/title_home"
-    app:route="home"
-    tools:layout="@layout/fragment_home" >
-</fragment>
+    <navigation
+        android:id="@+id/nav_device_wrapper"
+        app:route="app_device_page/{productId}/{deviceId}"
+        app:startDestination="@id/nav_device">
+        <argument android:name="productId" />
+        <argument android:name="deviceId" />
+        <include app:graph="@navigation/device" />
+    </navigation>
+
 </navigation>

@@ -3,6 +3,7 @@ package com.nabto.edge.sharedcode
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.navigation.findNavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
@@ -27,8 +28,6 @@ class AppMainActivity : AppCompatActivity() {
         toolbar.setupWithNavController(navController)
 
         val bottomMenu = findViewById<BottomNavigationView>(R.id.bottom_nav)
-        bottomMenu.setOnItemSelectedListener {
-            true
-        }
+        bottomMenu.setupWithNavController(navController)
     }
 }
