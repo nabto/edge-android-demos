@@ -14,7 +14,8 @@
         android:layout_height="match_parent"
         app:defaultNavHost="true"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        app:navGraph="@navigation/app_nav" />
+        app:navGraph="@navigation/app_nav"
+        tools:layout="@layout/fragment_home" />
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
