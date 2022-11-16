@@ -20,7 +20,7 @@
     <string name="product_id">Product ID</string>
     <string name="user_id">User ID</string>
     <string name="refresh">Refresh</string>
-    <string name="title_app_settings">App Settings</string>
+    <string name="title_app_settings">Settings</string>
     <string name="app_settings_displayname">Fill in your display name here. Other users of shared devices can see this display name.</string>
     <string name="display_name">Display Name</string>
     <string name="app_settings_client_pk">Here you can reset your client private key. This key is used for authentication with a device. Resetting will delete the current private key and create a new one for you. You will have to redo pairing with your devices in this case. Only reset your client private key when you absolutely have to. Your current private key is</string>

@@ -1,6 +1,8 @@
 package com.nabto.edge.sharedcode
 
 import android.app.Application
+import android.content.Context
+import androidx.preference.PreferenceManager
 import androidx.room.Room
 import com.nabto.edge.client.NabtoClient
 import kotlinx.coroutines.CoroutineScope

@@ -16,5 +16,4 @@
         <argument android:name="deviceId" />
         <include app:graph="@navigation/device" />
     </navigation>
-
 </navigation>

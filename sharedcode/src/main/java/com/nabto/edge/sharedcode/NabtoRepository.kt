@@ -4,6 +4,7 @@ import android.content.Context
 import android.provider.Settings
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.preference.PreferenceManager
 import com.nabto.edge.client.NabtoClient
 import kotlinx.coroutines.CoroutineScope
 
@@ -53,10 +54,7 @@ class NabtoRepositoryImpl(
     private val scanner: NabtoDeviceScanner
 ) : NabtoRepository {
     private val _displayName = MutableLiveData<String>()
-    private val pref = context.getSharedPreferences(
-        internalConfig.SHARED_PREFERENCES,
-        Context.MODE_PRIVATE
-    )
+    private val pref = PreferenceManager.getDefaultSharedPreferences(context)
 
     init {
         run {
