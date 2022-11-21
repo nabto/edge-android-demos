@@ -240,7 +240,7 @@ private class PairDeviceViewModel(
                     else -> {}
                 }
             }
-            handle = manager.requestConnection(device, listener)
+            handle = manager.requestConnection(device)
             observer = Observer<NabtoConnectionState> {
                 if (it == NabtoConnectionState.CONNECTED) {
                     pairAndUpdateDevice(username, friendlyName, displayName)
@@ -258,6 +258,8 @@ private class PairDeviceViewModel(
                     observer = newObserver
                 }
             }
+            manager.subscribe(handle, listener)
+            manager.connect(handle)
         }
     }
 

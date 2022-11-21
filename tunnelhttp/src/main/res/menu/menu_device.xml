@@ -2,6 +2,11 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_return_home"
+        android:icon="@drawable/ic_home"
+        android:title="Go home"
+        app:showAsAction="ifRoom"/>
+    <item
         android:id="@+id/action_device_refresh"
         android:icon="@drawable/ic_baseline_refresh_48"
         android:title="@string/refresh"

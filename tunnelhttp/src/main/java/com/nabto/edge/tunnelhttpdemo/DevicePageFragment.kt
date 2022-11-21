@@ -7,6 +7,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
@@ -14,6 +15,7 @@ import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.google.android.material.appbar.MaterialToolbar
 import com.nabto.edge.client.ErrorCodes
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.TcpTunnel
@@ -24,6 +26,7 @@ import com.nabto.edge.iamutil.ktx.awaitGetCurrentUser
 import com.nabto.edge.sharedcode.*
 import kotlinx.coroutines.*
 import org.koin.android.ext.android.inject
+import java.net.URI
 
 class DevicePageViewModelFactory(
     private val productId: String,
@@ -85,6 +88,8 @@ class DevicePageViewModel(
     private val _currentUser: MutableLiveData<IamUser> = MutableLiveData()
     private val _device = MutableLiveData<Device>()
 
+    private val listener = ConnectionEventListener { event, _ -> onConnectionChanged(event) }
+
     private var isPaused = false
     private var updateLoopJob: Job? = null
     private lateinit var handle: ConnectionHandle
@@ -124,7 +129,8 @@ class DevicePageViewModel(
             val dao = database.deviceDao()
             val dev = withContext(Dispatchers.IO) { dao.get(productId, deviceId) }
             _device.postValue(dev)
-            handle = connectionManager.requestConnection(dev) { event, _ -> onConnectionChanged(event) }
+            handle = connectionManager.requestConnection(dev)
+            connectionManager.subscribe(handle, listener)
             if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
                 // We're already connected from the home page.
                 startup()
@@ -133,7 +139,7 @@ class DevicePageViewModel(
             // we may have been handed a closed connection from the home page
             // try to reconnect it if that is the case.
             if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CLOSED) {
-                connectionManager.reconnect(handle)
+                connectionManager.connect(handle)
             }
         }
     }
@@ -229,7 +235,7 @@ class DevicePageViewModel(
      */
     fun tryReconnect() {
         if (_connState.value == AppConnectionState.DISCONNECTED) {
-            connectionManager.reconnect(handle)
+            connectionManager.connect(handle)
         } else {
             _connEvent.postEvent(AppConnectionEvent.RECONNECTED)
         }
@@ -259,7 +265,7 @@ class DevicePageViewModel(
     override fun onCleared() {
         super.onCleared()
         viewModelScope.cancel()
-        connectionManager.releaseHandle(handle)
+        connectionManager.unsubscribe(handle, listener)
     }
 }
 
@@ -286,11 +292,13 @@ class DevicePageFragment : Fragment(), MenuProvider {
         )
     }
 
-    private lateinit var mainLayout: View
-    private lateinit var lostConnectionBar: View
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var loadingSpinner: View
     private lateinit var webView: WebView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -304,14 +312,11 @@ class DevicePageFragment : Fragment(), MenuProvider {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
-        mainLayout = view.findViewById(R.id.dp_main)
         swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
-        lostConnectionBar = view.findViewById(R.id.dp_lost_connection_bar)
         loadingSpinner =  view.findViewById(R.id.dp_loading)
 
         webView = view.findViewById(R.id.dp_webview)
 
-        val urlText = view.findViewById<TextView>(R.id.dp_url_bar)
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
@@ -322,8 +327,18 @@ class DevicePageFragment : Fragment(), MenuProvider {
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                urlText.text = url
+                val uri = URI(url)
+                requireAppActivity().actionBarSubtitle = uri.path ?: ""
                 super.doUpdateVisitedHistory(view, url, isReload)
+            }
+        }
+
+        requireAppActivity().setNavigationListener(this) {
+            if (webView.canGoBack()) {
+                webView.goBack()
+                true
+            } else {
+                false
             }
         }
 
@@ -336,19 +351,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
             refresh()
         }
 
-        model.currentUser.observe(viewLifecycleOwner, Observer {
-            view.findViewById<TextView>(R.id.dp_info_userid).text = it.username
-        })
-
         model.device.observe(viewLifecycleOwner, Observer { device ->
-            view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
-            view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
-            view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
-
-            // Slightly hacky way of programmatically setting toolbar title
-            // @TODO: A more "proper" way to do it could be to have an activity bound
-            //        ViewModel that lets you set the title.
-            (requireActivity() as AppCompatActivity).supportActionBar?.title = device.friendlyName
+            requireAppActivity().actionBarTitle = device.friendlyName
         })
 
         model.tunnelPort.observe(viewLifecycleOwner, Observer { port ->
@@ -361,6 +365,11 @@ class DevicePageFragment : Fragment(), MenuProvider {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         webView.saveState(outState)
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        requireAppActivity().actionBarSubtitle = ""
     }
 
     private fun refresh() {
@@ -378,22 +387,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
             AppConnectionState.CONNECTED -> {
                 loadingSpinner.visibility = View.INVISIBLE
-                lostConnectionBar.visibility = View.GONE
                 swipeRefreshLayout.visibility = View.VISIBLE
-
-                lostConnectionBar.animate()
-                    .translationY(-lostConnectionBar.height.toFloat())
-                mainLayout.animate()
-                    .translationY(0f)
             }
 
             AppConnectionState.DISCONNECTED -> {
-                lostConnectionBar.visibility = View.VISIBLE
-                lostConnectionBar.animate()
-                    .translationY(0f)
-                mainLayout.animate()
-                    .translationY(lostConnectionBar.height.toFloat())
-
             }
         }
     }
@@ -438,6 +435,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
     }
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+        if (menuItem.itemId == R.id.action_return_home) {
+            findNavController().navigate(AppRoute.home())
+            return true
+        }
         if (menuItem.itemId == R.id.action_device_refresh) {
             swipeRefreshLayout.isRefreshing = true
             refresh()

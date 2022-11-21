@@ -6,6 +6,7 @@ import android.content.Context
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import androidx.annotation.IdRes
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.*
@@ -117,5 +118,14 @@ class ConfirmDialogPreference(context: Context) : Preference(context) {
             }
             .create()
             .show()
+    }
+}
+
+fun Fragment.requireAppActivity(): AppMainActivity {
+    val activity = requireActivity()
+    if (AppMainActivity::class.java.isAssignableFrom(activity.javaClass)) {
+        return activity as AppMainActivity
+    } else {
+        throw IllegalStateException("Activity does not inherit from AppMainActivity.")
     }
 }

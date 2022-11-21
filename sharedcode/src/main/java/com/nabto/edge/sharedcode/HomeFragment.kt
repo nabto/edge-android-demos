@@ -93,8 +93,6 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
 class HomeFragment : Fragment(), MenuProvider {
     private val TAG = javaClass.simpleName
 
-    private val database: DeviceDatabase by inject()
-    private val manager: NabtoConnectionManager by inject()
     private val bookmarks: NabtoBookmarksRepository by inject()
     private val deviceListAdapter = DeviceListAdapter()
 
@@ -131,7 +129,10 @@ class HomeFragment : Fragment(), MenuProvider {
             layoutManager.orientation
         )
         recycler.addItemDecoration(dividerItemDecoration)
+    }
 
+    override fun onResume() {
+        super.onResume()
         bookmarks.synchronize()
     }
 
@@ -150,18 +151,6 @@ class HomeFragment : Fragment(), MenuProvider {
     }
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-        /*
-        if (menuItem.itemId == R.id.action_pair_new) {
-            model.release()
-            findNavController().navigate(AppRoute.pairingFlow())
-            return true
-        }
-
-        if (menuItem.itemId == R.id.action_settings) {
-            model.release()
-            findNavController().navigate(AppRoute.settings())
-        }
-         */
         if (menuItem.itemId == R.id.action_device_refresh) {
             bookmarks.reconnect()
             return true

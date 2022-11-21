@@ -57,7 +57,7 @@ dependencies {
     api ("androidx.lifecycle:lifecycle-runtime-ktx:2.5.1")
     api ("androidx.lifecycle:lifecycle-livedata-ktx:2.5.1")
     api ("com.google.android.gms:play-services-vision:20.1.3")
-    implementation ("androidx.preference:preference-ktx:1.2.0")
+    api ("androidx.preference:preference-ktx:1.2.0")
 
     // Nabto dependencies
     api ("com.nabto.edge.client:library:2.3.0")

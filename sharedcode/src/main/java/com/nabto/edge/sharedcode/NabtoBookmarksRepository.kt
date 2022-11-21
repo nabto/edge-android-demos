@@ -4,11 +4,16 @@ import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
+import androidx.lifecycle.asFlow
 import com.nabto.edge.iamutil.IamException
 import com.nabto.edge.iamutil.IamUtil
 import com.nabto.edge.iamutil.ktx.awaitIsCurrentUserPaired
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 
 enum class BookmarkStatus {
     ONLINE,
@@ -47,8 +52,9 @@ class NabtoBookmarksRepositoryImpl(
     val deviceList: LiveData<List<DeviceBookmark>>
         get() = _deviceList
 
-    private val connections = mutableMapOf<Device, ConnectionHandle>()
-    private val status = mutableMapOf<Device, BookmarkStatus>()
+    private val connections = ConcurrentHashMap<Device, ConnectionHandle>()
+    private val status = ConcurrentHashMap<Device, BookmarkStatus>()
+    private val jobs = mutableMapOf<Device, Job>()
 
     private var devices: List<Device> = listOf()
     private var isSynchronized = false
@@ -56,6 +62,7 @@ class NabtoBookmarksRepositoryImpl(
     init {
         scope.launch {
             database.deviceDao().getAll().collect {
+                releaseAllExcept(it)
                 devices = it
                 if (isSynchronized) {
                     startDeviceConnections()
@@ -71,39 +78,38 @@ class NabtoBookmarksRepositoryImpl(
         _deviceList.postValue(list)
     }
 
-    private fun startDeviceConnections() {
-        for (key in devices) {
-            status[key] = status[key] ?: BookmarkStatus.OFFLINE
-            connections[key] = connections[key] ?: manager.requestConnection(key) { event, handle ->
-                scope.launch { onDeviceEvent(key, event, handle) }
+    private suspend fun getConnectedStatus(handle: ConnectionHandle): BookmarkStatus {
+        val iam = IamUtil.create()
+        return try {
+            val paired = iam.awaitIsCurrentUserPaired(manager.getConnection(handle))
+            if (paired) {
+                BookmarkStatus.ONLINE
+            } else {
+                BookmarkStatus.UNPAIRED
             }
+        } catch (e: IamException) {
+            Log.i(TAG, "getConnectedStatus caught exception $e")
+            BookmarkStatus.OFFLINE
         }
-
-        postDevices()
     }
 
-    private suspend fun onDeviceEvent(device: Device, event: NabtoConnectionEvent, handle: ConnectionHandle) {
-        status[device] = when (event) {
-            NabtoConnectionEvent.CONNECTING -> BookmarkStatus.CONNECTING
-            NabtoConnectionEvent.CONNECTED -> {
-                val iam = IamUtil.create()
-                try {
-                    val paired = iam.awaitIsCurrentUserPaired(manager.getConnection(handle))
-                    if (paired) {
-                        BookmarkStatus.ONLINE
-                    } else {
-                        BookmarkStatus.UNPAIRED
+    private fun startDeviceConnections() {
+        for (key in devices) {
+            connections[key] = connections[key] ?: manager.requestConnection(key)
+            connections[key]?.let { handle ->
+                val job = scope.launch {
+                    manager.getConnectionState(handle)?.asFlow()?.collect {
+                        status[key] = when (it) {
+                            NabtoConnectionState.CLOSED -> BookmarkStatus.OFFLINE
+                            NabtoConnectionState.CONNECTING -> BookmarkStatus.CONNECTING
+                            NabtoConnectionState.CONNECTED -> getConnectedStatus(handle)
+                        }
+                        postDevices()
                     }
-                } catch (e: IamException) {
-                    Log.i(TAG, "onDeviceEvent caught exception $e")
-                    BookmarkStatus.OFFLINE
                 }
+                jobs[key] = job
             }
-            NabtoConnectionEvent.DEVICE_DISCONNECTED -> BookmarkStatus.OFFLINE
-            NabtoConnectionEvent.FAILED_TO_CONNECT -> BookmarkStatus.OFFLINE
-            NabtoConnectionEvent.PAUSED -> BookmarkStatus.ONLINE
-            NabtoConnectionEvent.UNPAUSED -> BookmarkStatus.ONLINE
-            NabtoConnectionEvent.CLOSED -> BookmarkStatus.OFFLINE
+            connections[key]?.let { manager.connect(it) }
         }
         postDevices()
     }
@@ -123,26 +129,24 @@ class NabtoBookmarksRepositoryImpl(
 
     override fun reconnect() {
         for ((_, handle) in connections) {
-            manager.reconnect(handle)
+            manager.connect(handle)
         }
     }
 
     override fun releaseAllExcept(devices: List<Device>) {
-        isSynchronized = false
         for ((key, handle) in connections) {
             if (!devices.contains(key)) {
                 manager.releaseHandle(handle)
+                connections.remove(key)
+                status.remove(key)
+                jobs.remove(key)?.cancel()
             }
         }
-        connections.clear()
-        status.clear()
     }
 
     override fun releaseAll() {
-        isSynchronized = false
-        for ((_, handle) in connections) {
-            manager.releaseHandle(handle)
-        }
+        connections.forEach {(_, h) -> manager.releaseHandle(h)}
+        jobs.forEach {(_, v) -> v.cancel()}
         connections.clear()
         status.clear()
     }
