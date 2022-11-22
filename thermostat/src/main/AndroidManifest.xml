@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <application
-        android:name="com.nabto.edge.thermostatdemo.NabtoAndroidApplication"
+        android:name="com.nabto.edge.thermostatdemo.ThermostatApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -14,7 +14,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.NabtoDemo">
         <activity
-            android:name="com.nabto.edge.thermostatdemo.MainActivity"
+            android:name="com.nabto.edge.sharedcode.AppMainActivity"
+            android:windowSoftInputMode="adjustPan"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
