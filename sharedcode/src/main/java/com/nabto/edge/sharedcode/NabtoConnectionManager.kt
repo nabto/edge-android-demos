@@ -5,13 +5,12 @@ import androidx.lifecycle.*
 import com.nabto.edge.client.*
 import com.nabto.edge.client.ktx.awaitConnect
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.actor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.atomic.AtomicReference
 
 enum class NabtoConnectionState {
     CLOSED,
@@ -160,7 +159,8 @@ class NabtoConnectionManagerImpl(
 ): NabtoConnectionManager, LifecycleEventObserver {
     data class ConnectionData(
         var connection: Connection?,
-        val state: MutableLiveData<NabtoConnectionState>,
+        val state: AtomicReference<NabtoConnectionState>,
+        val stateLiveData: MutableLiveData<NabtoConnectionState>,
         val connectionEventsCallback: ConnectionEventsCallback,
         val options: String, // json string
         val subscribers: MutableList<ConnectionEventListener> = mutableListOf()
@@ -193,7 +193,7 @@ class NabtoConnectionManagerImpl(
     }
 
     private fun publish(data: ConnectionData?, event: NabtoConnectionEvent, handle: ConnectionHandle) {
-        data?.state?.postValue(when (event) {
+        val state = when (event) {
             NabtoConnectionEvent.CONNECTED -> NabtoConnectionState.CONNECTED
             NabtoConnectionEvent.CONNECTING -> NabtoConnectionState.CONNECTING
             NabtoConnectionEvent.DEVICE_DISCONNECTED -> NabtoConnectionState.CLOSED
@@ -201,7 +201,9 @@ class NabtoConnectionManagerImpl(
             NabtoConnectionEvent.CLOSED -> NabtoConnectionState.CLOSED
             NabtoConnectionEvent.PAUSED -> NabtoConnectionState.CONNECTED
             NabtoConnectionEvent.UNPAUSED -> NabtoConnectionState.CONNECTED
-        })
+        }
+        data?.stateLiveData?.postValue(state)
+        data?.state?.set(state)
 
         data?.subscribers?.forEach {
             it.onConnectionEvent(event, handle)
@@ -214,7 +216,7 @@ class NabtoConnectionManagerImpl(
 
     override fun connect(handle: ConnectionHandle) {
         connectionMap[handle]?.let { data ->
-            if (data.state.value != NabtoConnectionState.CLOSED) {
+            if (data.state.get() != NabtoConnectionState.CLOSED) {
                 // no-op if we're already connected
                 return
             }
@@ -256,7 +258,7 @@ class NabtoConnectionManagerImpl(
             override fun onEvent(event: Int) {
                 when (event) {
                     CLOSED -> {
-                        if (connectionMap[handle]?.state?.value == NabtoConnectionState.CONNECTED) {
+                        if (connectionMap[handle]?.state?.get() == NabtoConnectionState.CONNECTED) {
                             publish(handle, NabtoConnectionEvent.DEVICE_DISCONNECTED)
                         }
                     }
@@ -280,6 +282,7 @@ class NabtoConnectionManagerImpl(
         // add new connection and subscribe to it
         connectionMap[handle] = ConnectionData(
             null,
+            AtomicReference(NabtoConnectionState.CLOSED),
             MutableLiveData(NabtoConnectionState.CLOSED),
             connectionEventsCallback,
             options.toString()
@@ -290,7 +293,7 @@ class NabtoConnectionManagerImpl(
     // closes the connection but does not release the handle
     private fun close(handle: ConnectionHandle) {
         connectionMap[handle]?.let { data ->
-            if (data.state.value != NabtoConnectionState.CLOSED) {
+            if (data.state.get() != NabtoConnectionState.CLOSED) {
                 publish(handle, NabtoConnectionEvent.CLOSED)
                 scope.launch(singleDispatcher) {
                     val conn = data.connection
@@ -303,10 +306,10 @@ class NabtoConnectionManagerImpl(
     }
 
     private fun releaseData(handle: ConnectionHandle, data: ConnectionData) {
-        if (data.state.value != NabtoConnectionState.CLOSED) {
+        if (data.state.get() != NabtoConnectionState.CLOSED) {
             publish(data, NabtoConnectionEvent.CLOSED, handle)
             scope.launch(singleDispatcher){
-                if (data.state.value == NabtoConnectionState.CONNECTED) data.connection?.close()
+                if (data.state.get() == NabtoConnectionState.CONNECTED) data.connection?.close()
                 data.connection?.removeConnectionEventsListener(data.connectionEventsCallback)
             }
         }
@@ -340,7 +343,7 @@ class NabtoConnectionManagerImpl(
     }
 
     override fun getConnectionState(handle: ConnectionHandle?): LiveData<NabtoConnectionState>? {
-        return connectionMap[handle]?.state
+        return connectionMap[handle]?.stateLiveData
     }
 
     override suspend fun openTunnelService(handle: ConnectionHandle, service: String): TcpTunnel {
@@ -359,7 +362,7 @@ class NabtoConnectionManagerImpl(
             Lifecycle.Event.ON_RESUME -> {
                 isAppInBackground = false
                 connectionMap.forEach { (handle, data) ->
-                    if (data.state.value == NabtoConnectionState.CONNECTED) {
+                    if (data.state.get() == NabtoConnectionState.CONNECTED) {
                         publish(handle, NabtoConnectionEvent.UNPAUSED)
                     }
                     connect(handle)
@@ -368,7 +371,7 @@ class NabtoConnectionManagerImpl(
             Lifecycle.Event.ON_STOP -> {
                 isAppInBackground = true
                 connectionMap.forEach { (handle, data) ->
-                    if (data.state.value != NabtoConnectionState.CLOSED) {
+                    if (data.state.get() != NabtoConnectionState.CLOSED) {
                         publish(handle, NabtoConnectionEvent.PAUSED)
                     }
 
