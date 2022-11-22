@@ -150,6 +150,8 @@ interface NabtoConnectionManager {
 
     // @TODO: Documentation
     suspend fun openTunnelService(handle: ConnectionHandle, service: String): TcpTunnel
+
+    fun releaseAll()
 }
 
 class NabtoConnectionManagerImpl(
@@ -300,17 +302,30 @@ class NabtoConnectionManagerImpl(
         }
     }
 
-    override fun releaseHandle(handle: ConnectionHandle) {
-        connectionMap.remove(handle)?.let { data ->
-            if (data.state.value != NabtoConnectionState.CLOSED) {
-                publish(data, NabtoConnectionEvent.CLOSED, handle)
-                scope.launch(singleDispatcher){
-                    if (data.state.value == NabtoConnectionState.CONNECTED) data.connection?.close()
-                    data.connection?.removeConnectionEventsListener(data.connectionEventsCallback)
-                }
+    private fun releaseData(handle: ConnectionHandle, data: ConnectionData) {
+        if (data.state.value != NabtoConnectionState.CLOSED) {
+            publish(data, NabtoConnectionEvent.CLOSED, handle)
+            scope.launch(singleDispatcher){
+                if (data.state.value == NabtoConnectionState.CONNECTED) data.connection?.close()
+                data.connection?.removeConnectionEventsListener(data.connectionEventsCallback)
             }
         }
     }
+
+    override fun releaseHandle(handle: ConnectionHandle) {
+        connectionMap.remove(handle)?.let { data ->
+            releaseData(handle, data)
+        }
+    }
+
+    override fun releaseAll() {
+        val copy = ConcurrentHashMap(connectionMap)
+        connectionMap.clear()
+        for ((k, v) in copy) {
+            releaseData(k, v)
+        }
+    }
+
 
     override fun getConnection(handle: ConnectionHandle): Connection {
         return connectionMap[handle]?.connection ?: run {

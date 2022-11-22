@@ -262,13 +262,6 @@ private class PairDeviceViewModel(
             manager.connect(handle)
         }
     }
-
-    override fun onCleared() {
-        super.onCleared()
-        if (this::handle.isInitialized) {
-            manager.releaseHandle(handle)
-        }
-    }
 }
 
 /**

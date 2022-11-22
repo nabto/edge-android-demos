@@ -12,6 +12,7 @@ import org.koin.android.ext.android.inject
 class AppSettingsFragment : PreferenceFragmentCompat() {
     private val repo: NabtoRepository by inject()
     private val database: DeviceDatabase by inject()
+    private val manager: NabtoConnectionManager by inject()
 
     private val displayNameKey = internalConfig.DISPLAY_NAME_PREF
     private val resetDatabaseKey = "preferences_reset_database"
@@ -59,6 +60,7 @@ class AppSettingsFragment : PreferenceFragmentCompat() {
                 onDialogClosed = { confirmed ->
                     if (confirmed) {
                         repo.resetClientPrivateKey()
+                        manager.releaseAll()
                         view?.snack(getString(R.string.app_settings_client_pk_snack), Snackbar.LENGTH_SHORT);
                     }
                 }

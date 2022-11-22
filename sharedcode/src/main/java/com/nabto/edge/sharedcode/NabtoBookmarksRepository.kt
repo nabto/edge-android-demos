@@ -95,7 +95,7 @@ class NabtoBookmarksRepositoryImpl(
 
     private fun startDeviceConnections() {
         for (key in devices) {
-            connections[key] = connections[key] ?: manager.requestConnection(key)
+            connections[key] = manager.requestConnection(key)
             connections[key]?.let { handle ->
                 val job = scope.launch {
                     manager.getConnectionState(handle)?.asFlow()?.collect {
