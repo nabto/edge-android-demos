@@ -309,8 +309,12 @@ class NabtoConnectionManagerImpl(
         if (data.state.get() != NabtoConnectionState.CLOSED) {
             publish(data, NabtoConnectionEvent.CLOSED, handle)
             scope.launch(singleDispatcher){
-                if (data.state.get() == NabtoConnectionState.CONNECTED) data.connection?.close()
-                data.connection?.removeConnectionEventsListener(data.connectionEventsCallback)
+                try {
+                    data.connection?.removeConnectionEventsListener(data.connectionEventsCallback)
+                    data.connection?.close()
+                } catch (e: NabtoRuntimeException) {
+                    Log.w(TAG, "Attempt to close connection yielded $e")
+                }
             }
         }
     }
