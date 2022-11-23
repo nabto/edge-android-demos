@@ -146,7 +146,12 @@ fun DeviceDao.delete(productId: String, deviceId: String) {
  *
  * val database: DeviceDatabase by inject()
  */
-@Database(entities = [DatabaseDevice::class], version = 1)
+@Database(
+    entities = [DatabaseDevice::class], version = 2,
+    autoMigrations = [
+        AutoMigration (from = 1, to = 2)
+    ]
+)
 abstract class DeviceDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao
 }
