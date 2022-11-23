@@ -50,7 +50,7 @@ data class Device(
 data class DatabaseDevice(
     val productId: String,
     val deviceId: String,
-    val fingerprint: String,
+    @ColumnInfo(defaultValue = "") val fingerprint: String,
     val SCT: String,
     val appName: String,
     val friendlyName: String
