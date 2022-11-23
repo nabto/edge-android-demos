@@ -1,8 +1,6 @@
 package com.nabto.edge.sharedcode
 
-import android.os.Bundle
 import android.os.Parcelable
-import androidx.core.os.bundleOf
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -11,13 +9,12 @@ import kotlinx.parcelize.Parcelize
 /**
  * Data class that holds information about a device. Everything except [productId] and [deviceId]
  * may be empty strings.
- *
- * @TODO: Maybe it would be better to make them nullable?
  */
 @Parcelize
 data class Device(
     val productId: String,
     val deviceId: String,
+    val fingerprint: String = "",
     val SCT: String = "",
     val appName: String = "",
     val friendlyName: String = "",
@@ -38,16 +35,6 @@ data class Device(
     fun getDeviceNameOrElse(default: String = ""): String {
         return friendlyName.ifEmpty { appName.ifEmpty { default } }
     }
-
-    fun toBundle(): Bundle {
-        return bundleOf("device" to this)
-    }
-
-    companion object {
-        fun fromBundle(data: Bundle?): Device {
-            return data?.get("device") as Device
-        }
-    }
 }
 
 /**
@@ -63,15 +50,22 @@ data class Device(
 data class DatabaseDevice(
     val productId: String,
     val deviceId: String,
+    val fingerprint: String,
     val SCT: String,
     val appName: String,
     val friendlyName: String
+)
+
+data class DatabasePrimaryKey(
+    val productId: String,
+    val deviceId: String
 )
 
 fun convertEntryToDevice(entry: DatabaseDevice): Device {
     return Device(
         productId = entry.productId,
         deviceId = entry.deviceId,
+        fingerprint = entry.fingerprint,
         SCT = entry.SCT,
         appName =  entry.appName,
         friendlyName = entry.friendlyName,
@@ -83,6 +77,7 @@ fun convertDeviceToEntry(dev: Device): DatabaseDevice {
     return DatabaseDevice(
         productId = dev.productId,
         deviceId = dev.deviceId,
+        fingerprint = dev.fingerprint,
         SCT = dev.SCT,
         appName = dev.appName,
         friendlyName = dev.friendlyName
@@ -108,6 +103,9 @@ interface DeviceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun _insertOrUpdate(device: DatabaseDevice)
 
+    @Delete(entity = DatabaseDevice::class)
+    fun _delete(key: DatabasePrimaryKey)
+
     @Query("DELETE FROM devices")
     fun deleteAll()
 }
@@ -127,6 +125,19 @@ fun DeviceDao.getAll(): Flow<List<Device>> {
 
 fun DeviceDao.insertOrUpdate(device: Device) {
     _insertOrUpdate(convertDeviceToEntry(device))
+}
+
+fun DeviceDao.delete(device: Device) {
+    _delete(
+        DatabasePrimaryKey(
+            productId = device.productId,
+            deviceId = device.deviceId
+        )
+    )
+}
+
+fun DeviceDao.delete(productId: String, deviceId: String) {
+    _delete(DatabasePrimaryKey(productId, deviceId))
 }
 
 /**

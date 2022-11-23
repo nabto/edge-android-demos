@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/bookmark_edit"
+        android:icon="@drawable/ic_baseline_add_24"
+        android:title="Edit Friendly Name"/>
+
+    <item
+        android:id="@+id/bookmark_delete"
+        android:icon="@drawable/ic_baseline_add_24"
+        android:title="Delete Device"/>
+
+</menu>

@@ -549,7 +549,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
             view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
             view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
             view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
-            (requireActivity() as AppCompatActivity).supportActionBar?.title = device.friendlyName
+            requireAppActivity().actionBarTitle = device.friendlyName
         })
 
         model.currentUser.observe(viewLifecycleOwner, Observer {

@@ -107,9 +107,11 @@ private class PairDeviceViewModel(
         val connection = manager.getConnection(handle)
         val details = iam.awaitGetDeviceDetails(connection)
         val user = iam.awaitGetCurrentUser(connection)
+        val fingerprint = connection.deviceFingerprint
         return device.copy(
             productId = details.productId,
             deviceId = details.deviceId,
+            fingerprint = fingerprint,
             SCT = user.sct,
             appName = details.appName ?: "",
             friendlyName = friendlyDeviceName

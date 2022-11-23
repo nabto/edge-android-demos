@@ -19,7 +19,8 @@ enum class BookmarkStatus {
     ONLINE,
     CONNECTING,
     OFFLINE,
-    UNPAIRED
+    UNPAIRED,
+    WRONG_FINGERPRINT
 }
 
 data class DeviceBookmark(
@@ -78,9 +79,15 @@ class NabtoBookmarksRepositoryImpl(
         _deviceList.postValue(list)
     }
 
-    private suspend fun getConnectedStatus(handle: ConnectionHandle): BookmarkStatus {
+    private suspend fun getConnectedStatus(handle: ConnectionHandle, device: Device): BookmarkStatus {
         val iam = IamUtil.create()
         return try {
+            val localFingerprint = device.fingerprint
+            val fp = manager.getConnection(handle).deviceFingerprint
+            if (localFingerprint != fp) {
+                return BookmarkStatus.WRONG_FINGERPRINT
+            }
+
             val paired = iam.awaitIsCurrentUserPaired(manager.getConnection(handle))
             if (paired) {
                 BookmarkStatus.ONLINE
@@ -102,7 +109,7 @@ class NabtoBookmarksRepositoryImpl(
                         status[key] = when (it) {
                             NabtoConnectionState.CLOSED -> BookmarkStatus.OFFLINE
                             NabtoConnectionState.CONNECTING -> BookmarkStatus.CONNECTING
-                            NabtoConnectionState.CONNECTED -> getConnectedStatus(handle)
+                            NabtoConnectionState.CONNECTED -> getConnectedStatus(handle, key)
                         }
                         postDevices()
                     }

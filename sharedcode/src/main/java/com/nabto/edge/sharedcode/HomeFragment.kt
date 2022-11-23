@@ -1,10 +1,13 @@
 package com.nabto.edge.sharedcode
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.util.Log
 import android.view.*
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
+import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -26,17 +29,47 @@ import com.nabto.edge.iamutil.ktx.awaitIsCurrentUserPaired
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import com.nabto.edge.sharedcode.*
+import kotlinx.coroutines.Dispatchers
+
+private object DeviceMenu {
+    const val EDIT = 0
+    const val DELETE = 1
+}
 
 /**
  * RecyclerView Adapter for updating the views per item in the list.
  */
 class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
-    class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
+    class ViewHolder(val view: View) : RecyclerView.ViewHolder(view), View.OnCreateContextMenuListener{
         lateinit var device: Device
         val title: TextView = view.findViewById(R.id.home_device_item_title)
         val status: TextView = view.findViewById(R.id.home_device_item_subtitle)
         val connectionStatusView: ImageView = view.findViewById(R.id.home_device_item_connection)
         val progressBar: CircularProgressIndicator = view.findViewById(R.id.home_device_item_loading)
+
+        init {
+            view.setOnCreateContextMenuListener(this)
+        }
+
+        override fun onCreateContextMenu(
+            menu: ContextMenu?,
+            v: View?,
+            menuInfo: ContextMenu.ContextMenuInfo?
+        ) {
+            val onEdit = MenuItem.OnMenuItemClickListener {
+                v?.findFragment<HomeFragment>()?.onDeviceMenuClick(device, it.itemId)
+                true
+            }
+
+            val items = listOf(
+                menu?.add(Menu.NONE, DeviceMenu.EDIT, 1, "Edit friendly name"),
+                menu?.add(Menu.NONE, DeviceMenu.DELETE, 2, "Remove device")
+            )
+
+            for (it in items) {
+                it?.setOnMenuItemClickListener(onEdit)
+            }
+        }
     }
 
     private var dataSet: List<DeviceBookmark> = listOf()
@@ -56,17 +89,20 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.device = dataSet[position].device
         holder.title.text = dataSet[position].device.getDeviceNameOrElse("Unnamed device")
         holder.status.text = dataSet[position].device.deviceId
         holder.view.setOnClickListener {
             it.findFragment<HomeFragment>().onDeviceClick(dataSet[position].device)
         }
+
         val status = dataSet[position].status
         val (color, icon) = when (status) {
             BookmarkStatus.ONLINE -> R.color.green to R.drawable.ic_baseline_check_circle
             BookmarkStatus.UNPAIRED -> R.color.yellow to R.drawable.ic_baseline_lock
             BookmarkStatus.CONNECTING -> R.color.red to R.drawable.ic_baseline_warning
             BookmarkStatus.OFFLINE -> R.color.red to R.drawable.ic_baseline_warning
+            BookmarkStatus.WRONG_FINGERPRINT -> R.color.red to R.drawable.ic_baseline_lock
         }
 
         if (status == BookmarkStatus.CONNECTING) {
@@ -93,6 +129,7 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
 class HomeFragment : Fragment(), MenuProvider {
     private val TAG = javaClass.simpleName
 
+    private val database: DeviceDatabase by inject()
     private val bookmarks: NabtoBookmarksRepository by inject()
     private val deviceListAdapter = DeviceListAdapter()
 
@@ -129,6 +166,7 @@ class HomeFragment : Fragment(), MenuProvider {
             layoutManager.orientation
         )
         recycler.addItemDecoration(dividerItemDecoration)
+        registerForContextMenu(recycler)
     }
 
     override fun onResume() {
@@ -137,9 +175,12 @@ class HomeFragment : Fragment(), MenuProvider {
     }
 
     fun onDeviceClick(device: Device) {
-        if (bookmarks.getStatus(device) == BookmarkStatus.UNPAIRED) {
+        val status = bookmarks.getStatus(device)
+        if (status == BookmarkStatus.UNPAIRED) {
             bookmarks.releaseAll()
             findNavController().navigate(AppRoute.pairDevice(device.productId, device.deviceId))
+        } else if (status == BookmarkStatus.WRONG_FINGERPRINT) {
+            view?.snack("Fingerprint is different from expected! Please delete and redo pairing if this is deliberate.")
         } else {
             bookmarks.releaseAllExcept(listOf(device))
             findNavController().navigate(AppRoute.appDevicePage(device.productId, device.deviceId))
@@ -156,5 +197,54 @@ class HomeFragment : Fragment(), MenuProvider {
             return true
         }
         return false
+    }
+
+    fun onDeviceMenuClick(device: Device, id: Int) {
+        when (id) {
+            DeviceMenu.EDIT -> {
+                AlertDialog.Builder(context).apply {
+                    val et = EditText(context)
+                    et.setText(device.friendlyName)
+                    setTitle("Edit friendly name")
+                    setView(et)
+
+                    setPositiveButton(getString(R.string.confirm)) { _, _ ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val dao = database.deviceDao()
+                            dao.insertOrUpdate(device.copy(
+                                friendlyName = et.text.toString()
+                            ))
+                        }
+                    }
+
+                    setNegativeButton(getString(R.string.cancel)) { _, _ ->
+
+                    }
+
+                    create()
+                    show()
+                }
+            }
+
+            DeviceMenu.DELETE -> {
+                AlertDialog.Builder(context).apply {
+                    setTitle("Remove device")
+                    setMessage("Are you sure you want to remove ${device.friendlyName} from your device list? This cannot be undone.")
+
+                    setPositiveButton(getString(R.string.confirm)) { _, _ ->
+                        view?.snack("${device.friendlyName} has been removed.")
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val dao = database.deviceDao()
+                            dao.delete(device)
+                        }
+                    }
+
+                    setNegativeButton(getString(R.string.cancel)) { _, _ -> }
+
+                    create()
+                    show()
+                }
+            }
+        }
     }
 }
