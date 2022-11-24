@@ -3,7 +3,6 @@ package com.nabto.edge.sharedcode
 import android.os.Bundle
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.preference.EditTextPreference
-import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
@@ -26,42 +25,42 @@ class AppSettingsFragment : PreferenceFragmentCompat() {
         val prefs = listOf(
             EditTextPreference(context).apply {
                 key = displayNameKey
-                title = "Display Name"
+                title = getString(R.string.display_name)
                 icon = getDrawable(R.drawable.ic_person)
                 summaryProvider = EditTextPreference.SimpleSummaryProvider.getInstance()
-                dialogTitle = "Display Name"
-                dialogMessage = "This is the default name that will be used for pairing with a device."
+                dialogTitle = getString(R.string.display_name)
+                dialogMessage = getString(R.string.settings_display_name_dialog_message)
             },
 
             ConfirmDialogPreference(context).apply {
                 key = resetDatabaseKey
-                title = "Reset Bookmarked Devices"
+                title = getString(R.string.reset_database_title)
                 icon = getDrawable(R.drawable.ic_list_remove)
-                summary = "Clear the list of paired devices on Home"
-                dialogTitle = "Warning"
+                summary = getString(R.string.reset_database_summary)
+                dialogTitle = getString(R.string.warning)
                 dialogMessage = getString(R.string.app_settings_database_reset_dialog)
                 onDialogClosed = { confirmed ->
                     if (confirmed) {
                         repo.getApplicationScope().launch {
                             database.deviceDao().deleteAll()
                         }
-                        view?.snack(getString(R.string.app_settings_database_reset_snack), Snackbar.LENGTH_SHORT)
+                        view?.snack(getString(R.string.settings_reset_database_snack), Snackbar.LENGTH_SHORT)
                     }
                 }
             },
 
             ConfirmDialogPreference(context).apply {
                 key = resetPrivateKeyKey
-                title = "Reset Private Key"
+                title = getString(R.string.settings_reset_pk_title)
                 icon = getDrawable(R.drawable.ic_key_reset)
-                summary = "Reset and get a new private key"
-                dialogTitle = "Warning"
-                dialogMessage = getString(R.string.app_settings_reset_client_pk_dialog)
+                summary = getString(R.string.settings_reset_pk_summary)
+                dialogTitle = getString(R.string.warning)
+                dialogMessage = getString(R.string.settings_reset_pk_dialog_message)
                 onDialogClosed = { confirmed ->
                     if (confirmed) {
                         repo.resetClientPrivateKey()
                         manager.releaseAll()
-                        view?.snack(getString(R.string.app_settings_client_pk_snack), Snackbar.LENGTH_SHORT);
+                        view?.snack(getString(R.string.settings_reset_pk_snack), Snackbar.LENGTH_SHORT);
                     }
                 }
             }

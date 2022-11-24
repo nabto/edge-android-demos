@@ -27,16 +27,12 @@
     <string name="app_settings_database_reset">Here you can reset your remembered devices. Note that you\'re still paired with the devices, you will have to add them again using discover or pairing string.</string>
     <string name="client_private_key">Client Private Key</string>
     <string name="device_database">Device Database</string>
-    <string name="app_settings_reset_button">Reset device database</string>
-    <string name="app_settings_pk_reset_button">Reset client private key</string>
-    <string name="app_settings_display_name_button">Save display name</string>
-    <string name="app_settings_saved_snack">Display name has been saved.</string>
     <string name="confirm">Confirm</string>
     <string name="cancel">Cancel</string>
     <string name="app_settings_database_reset_dialog">Are you sure you want to clear all remembered devices?</string>
-    <string name="app_settings_reset_client_pk_dialog">Are you sure you want to delete your current private key and generate a new one?</string>
-    <string name="app_settings_client_pk_snack">Your private key has been regenerated.</string>
-    <string name="app_settings_database_reset_snack">Your list of remembered devices have been cleared.</string>
+    <string name="settings_reset_pk_dialog_message">Are you sure you want to delete your current private key and generate a new one?</string>
+    <string name="settings_reset_pk_snack">Your private key has been regenerated.</string>
+    <string name="settings_reset_database_snack">Your list of remembered devices have been cleared.</string>
     <string name="pair_landing_discover_text">The discovered devices list shows a list of devices that have been discovered with mDNS and can be paired with.</string>
     <string name="title_pairing_landing">Pairing</string>
     <string name="pair_device_error_username_empty">Username cannot be empty</string>
@@ -46,4 +42,14 @@
     <string name="device_failed_unknown">Failed to connect for some unknown reason.</string>
     <string name="pair_device_failed_no_password">Failed to pair with device, only password invite pairing is supported but no password was given.</string>
     <string name="pair_device_failed_invalid_pairing_modes">Failed to pair with device, none of the available pairing modes are supported.</string>
+    <string name="settings_display_name_dialog_message">This is the default name that will be used for pairing with a device.</string>
+    <string name="reset_database_title">Reset Bookmarked Devices</string>
+    <string name="reset_database_summary">Clear the list of paired devices on Home</string>
+    <string name="warning">Warning</string>
+    <string name="settings_reset_pk_title">Reset Private Key</string>
+    <string name="settings_reset_pk_summary">Reset and get a new private key</string>
+    <string name="home_edit_friendly_name">Edit friendly name</string>
+    <string name="home_remove_device">Remove device</string>
+    <string name="home_delete_dialog_message">Are you sure you want to remove %1$s from your device list? This cannot be undone.</string>
+    <string name="home_delete_device_snack">%1$s has been removed.</string>
 </resources>

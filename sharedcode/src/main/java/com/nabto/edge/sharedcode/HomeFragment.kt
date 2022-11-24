@@ -1,6 +1,7 @@
 package com.nabto.edge.sharedcode
 
 import android.app.AlertDialog
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -39,8 +40,8 @@ private object DeviceMenu {
 /**
  * RecyclerView Adapter for updating the views per item in the list.
  */
-class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
-    class ViewHolder(val view: View) : RecyclerView.ViewHolder(view), View.OnCreateContextMenuListener{
+class DeviceListAdapter(val context: Context) : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
+    class ViewHolder(val view: View, val context: Context) : RecyclerView.ViewHolder(view), View.OnCreateContextMenuListener{
         lateinit var device: Device
         val title: TextView = view.findViewById(R.id.home_device_item_title)
         val status: TextView = view.findViewById(R.id.home_device_item_subtitle)
@@ -62,8 +63,8 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
             }
 
             val items = listOf(
-                menu?.add(Menu.NONE, DeviceMenu.EDIT, 1, "Edit friendly name"),
-                menu?.add(Menu.NONE, DeviceMenu.DELETE, 2, "Remove device")
+                menu?.add(Menu.NONE, DeviceMenu.EDIT, 1, context.getString(R.string.home_edit_friendly_name)),
+                menu?.add(Menu.NONE, DeviceMenu.DELETE, 2, context.getString(R.string.home_remove_device))
             )
 
             for (it in items) {
@@ -85,12 +86,12 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
     ): ViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.home_device_list_item, parent, false)
-        return ViewHolder(view)
+        return ViewHolder(view, context)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.device = dataSet[position].device
-        holder.title.text = dataSet[position].device.getDeviceNameOrElse("Unnamed device")
+        holder.title.text = dataSet[position].device.getDeviceNameOrElse(context.getString(R.string.unnamed_device))
         holder.status.text = dataSet[position].device.deviceId
         holder.view.setOnClickListener {
             it.findFragment<HomeFragment>().onDeviceClick(dataSet[position].device)
@@ -131,7 +132,7 @@ class HomeFragment : Fragment(), MenuProvider {
 
     private val database: DeviceDatabase by inject()
     private val bookmarks: NabtoBookmarksRepository by inject()
-    private val deviceListAdapter = DeviceListAdapter()
+    private val deviceListAdapter = DeviceListAdapter(requireContext())
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -205,7 +206,7 @@ class HomeFragment : Fragment(), MenuProvider {
                 AlertDialog.Builder(context).apply {
                     val et = EditText(context)
                     et.setText(device.friendlyName)
-                    setTitle("Edit friendly name")
+                    setTitle(R.string.home_edit_friendly_name)
                     setView(et)
 
                     setPositiveButton(getString(R.string.confirm)) { _, _ ->
@@ -228,11 +229,11 @@ class HomeFragment : Fragment(), MenuProvider {
 
             DeviceMenu.DELETE -> {
                 AlertDialog.Builder(context).apply {
-                    setTitle("Remove device")
-                    setMessage("Are you sure you want to remove ${device.friendlyName} from your device list? This cannot be undone.")
+                    setTitle(R.string.home_remove_device)
+                    setMessage(getString(R.string.home_delete_dialog_message, device.friendlyName))
 
                     setPositiveButton(getString(R.string.confirm)) { _, _ ->
-                        view?.snack("${device.friendlyName} has been removed.")
+                        view?.snack(getString(R.string.home_delete_device_snack, device.friendlyName))
                         lifecycleScope.launch(Dispatchers.IO) {
                             val dao = database.deviceDao()
                             dao.delete(device)
