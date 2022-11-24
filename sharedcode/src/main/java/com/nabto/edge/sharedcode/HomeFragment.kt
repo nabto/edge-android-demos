@@ -132,7 +132,6 @@ class HomeFragment : Fragment(), MenuProvider {
 
     private val database: DeviceDatabase by inject()
     private val bookmarks: NabtoBookmarksRepository by inject()
-    private val deviceListAdapter = DeviceListAdapter(requireContext())
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -145,6 +144,7 @@ class HomeFragment : Fragment(), MenuProvider {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
+        val deviceListAdapter = DeviceListAdapter(requireContext())
 
         val recycler = view.findViewById<RecyclerView>(R.id.home_recycler)
         val layoutManager = LinearLayoutManager(activity)
