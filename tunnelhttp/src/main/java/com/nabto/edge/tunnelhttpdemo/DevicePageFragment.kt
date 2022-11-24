@@ -27,6 +27,7 @@ import com.nabto.edge.sharedcode.*
 import kotlinx.coroutines.*
 import org.koin.android.ext.android.inject
 import java.net.URI
+import java.net.URL
 
 class DevicePageViewModelFactory(
     private val productId: String,
@@ -65,7 +66,8 @@ enum class AppConnectionEvent {
     FAILED_INCORRECT_APP,
     FAILED_UNKNOWN,
     FAILED_NOT_PAIRED,
-    FAILED_NO_SUCH_SERVICE
+    FAILED_NO_SUCH_SERVICE,
+    ALREADY_CONNECTED
 }
 
 /**
@@ -237,7 +239,7 @@ class DevicePageViewModel(
         if (_connState.value == AppConnectionState.DISCONNECTED) {
             connectionManager.connect(handle)
         } else {
-            _connEvent.postEvent(AppConnectionEvent.RECONNECTED)
+            _connEvent.postEvent(AppConnectionEvent.ALREADY_CONNECTED)
         }
     }
 
@@ -292,13 +294,9 @@ class DevicePageFragment : Fragment(), MenuProvider {
         )
     }
 
-    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
+    private lateinit var swipeRefreshLayout: NabtoSwipeRefreshLayout
     private lateinit var loadingSpinner: View
     private lateinit var webView: WebView
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -342,6 +340,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
             }
         }
 
+        swipeRefreshLayout.canChildScrollUpCallback = { webView.scrollY > 0 }
+
         savedInstanceState?.let { webView.restoreState(it) }
 
         model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
@@ -356,8 +356,12 @@ class DevicePageFragment : Fragment(), MenuProvider {
         })
 
         model.tunnelPort.observe(viewLifecycleOwner, Observer { port ->
-            if (savedInstanceState == null) {
+            val urlString = webView.url
+            if (urlString == null) {
                 webView.loadUrl("http://127.0.0.1:${port}/")
+            } else {
+                val url = URL(urlString)
+                webView.loadUrl("http://127.0.0.1:${port}${url.path}")
             }
         })
     }
@@ -378,6 +382,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
     private fun onConnectionStateChanged(view: View, state: AppConnectionState) {
         Log.i(TAG, "Connection state changed to $state")
+        val lostConnectionBar = view.findViewById<View>(R.id.dp_lost_connection_bar)
 
         when (state) {
             AppConnectionState.INITIAL_CONNECTING -> {
@@ -388,9 +393,11 @@ class DevicePageFragment : Fragment(), MenuProvider {
             AppConnectionState.CONNECTED -> {
                 loadingSpinner.visibility = View.INVISIBLE
                 swipeRefreshLayout.visibility = View.VISIBLE
+                lostConnectionBar.visibility = View.GONE
             }
 
             AppConnectionState.DISCONNECTED -> {
+                lostConnectionBar.visibility = View.VISIBLE
             }
         }
     }
@@ -399,6 +406,11 @@ class DevicePageFragment : Fragment(), MenuProvider {
         Log.i(TAG, "Received connection event $event")
         when (event) {
             AppConnectionEvent.RECONNECTED -> {
+                swipeRefreshLayout.isRefreshing = false
+            }
+
+            AppConnectionEvent.ALREADY_CONNECTED -> {
+                webView.reload()
                 swipeRefreshLayout.isRefreshing = false
             }
 
@@ -442,6 +454,9 @@ class DevicePageFragment : Fragment(), MenuProvider {
         if (menuItem.itemId == R.id.action_device_refresh) {
             swipeRefreshLayout.isRefreshing = true
             refresh()
+            return true
+        }
+        if (menuItem.itemId == R.id.action_device_information) {
             return true
         }
         return false
