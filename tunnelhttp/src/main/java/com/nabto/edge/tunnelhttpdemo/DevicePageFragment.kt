@@ -8,6 +8,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
@@ -298,6 +299,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
     private lateinit var loadingSpinner: View
     private lateinit var webView: WebView
 
+    private var device: Device? = null
+    private var user: IamUser? = null
+    private var tunnelPort = 0
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -353,6 +358,11 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
         model.device.observe(viewLifecycleOwner, Observer { device ->
             requireAppActivity().actionBarTitle = device.friendlyName
+            this.device = device
+        })
+
+        model.currentUser.observe(viewLifecycleOwner, Observer {
+            user = it
         })
 
         model.tunnelPort.observe(viewLifecycleOwner, Observer { port ->
@@ -363,6 +373,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
                 val url = URL(urlString)
                 webView.loadUrl("http://127.0.0.1:${port}${url.path}")
             }
+            tunnelPort = port
         })
     }
 
@@ -457,6 +468,23 @@ class DevicePageFragment : Fragment(), MenuProvider {
             return true
         }
         if (menuItem.itemId == R.id.action_device_information) {
+            device?.let { dev ->
+                AlertDialog.Builder(requireContext()).apply {
+                    setView(R.layout.device_information)
+                    setTitle("Device information")
+                    setPositiveButton(R.string.ok) { _, _ -> }
+                    create().apply {
+                        // show must be called __before__ editing views
+                        show()
+
+                        findViewById<TextView>(R.id.dp_info_proid)?.text = dev.productId
+                        findViewById<TextView>(R.id.dp_info_devid)?.text = dev.deviceId
+                        findViewById<TextView>(R.id.dp_info_appname)?.text = dev.appName
+                        findViewById<TextView>(R.id.dp_info_userid)?.text = user?.username
+                        findViewById<TextView>(R.id.dp_info_tunnelport)?.text = tunnelPort.toString()
+                    }
+                }
+            }
             return true
         }
         return false

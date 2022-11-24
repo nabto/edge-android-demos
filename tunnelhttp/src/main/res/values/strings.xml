@@ -7,4 +7,6 @@
     <string name="failed_reconnect">Failed to reconnect!</string>
     <string name="pair_device_failed_incorrect_app">Failed to pair with device, it\'s not a TCP tunnel!</string>
     <string name="device_failed_no_such_service">This tunnel device does not have an http service.</string>
+    <string name="ok">\"OK\"</string>
+    <string name="tunnel_port">Tunnel Port</string>
 </resources>
