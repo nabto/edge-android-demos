@@ -62,10 +62,12 @@
         <entry key="sharedcode/src/main/res/drawable/ic_spinner.xml" value="0.2055" />
         <entry key="sharedcode/src/main/res/drawable/rotation.xml" value="0.2055" />
         <entry key="sharedcode/src/main/res/drawable/spinner_animator.xml" value="0.2055" />
+        <entry key="sharedcode/src/main/res/layout/app_main_activity.xml" value="0.2947916666666667" />
         <entry key="sharedcode/src/main/res/layout/fragment_app_settings.xml" value="0.19375" />
         <entry key="sharedcode/src/main/res/layout/fragment_home.xml" value="0.19895833333333332" />
         <entry key="sharedcode/src/main/res/layout/home_device_list_item.xml" value="0.19375" />
         <entry key="sharedcode/src/main/res/layout/ic_baseline_refresh_24.xml" value="0.203125" />
+        <entry key="sharedcode/src/main/res/menu/main_nav.xml" value="0.3770833333333333" />
         <entry key="sharedcode/src/main/res/menu/menu_main.xml" value="0.3729166666666667" />
         <entry key="thermostat/src/main/res/drawable-v24/ic_launcher_foreground.xml" value="0.1965" />
         <entry key="thermostat/src/main/res/drawable/ic_launcher_background.xml" value="0.1965" />

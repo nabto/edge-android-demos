@@ -4,6 +4,7 @@ import android.content.Context
 import android.provider.Settings
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.preference.PreferenceManager
 import com.nabto.edge.client.NabtoClient
 import kotlinx.coroutines.CoroutineScope
 
@@ -31,7 +32,7 @@ interface NabtoRepository {
     fun getScannedDevices(): LiveData<List<Device>>
 
     /**
-     * Returns an application-wide CoroutineScope
+     * Returns an application-wide CoroutineScope.
      */
     fun getApplicationScope(): CoroutineScope
 
@@ -39,9 +40,12 @@ interface NabtoRepository {
      * Returns the display name of the user as LiveData.
      */
     fun getDisplayName(): LiveData<String>
+
+    /**
+     * Set the display name of the user.
+     */
     fun setDisplayName(displayName: String)
 }
-
 
 class NabtoRepositoryImpl(
     private val context: Context,
@@ -50,10 +54,7 @@ class NabtoRepositoryImpl(
     private val scanner: NabtoDeviceScanner
 ) : NabtoRepository {
     private val _displayName = MutableLiveData<String>()
-    private val pref = context.getSharedPreferences(
-        internalConfig.SHARED_PREFERENCES,
-        Context.MODE_PRIVATE
-    )
+    private val pref = PreferenceManager.getDefaultSharedPreferences(context)
 
     init {
         run {

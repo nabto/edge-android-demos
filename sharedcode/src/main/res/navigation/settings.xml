@@ -2,13 +2,12 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/nav_graph"
+    android:id="@+id/nav_settings"
     app:route="settings"
     app:startDestination="@id/appSettingsFragment">
 
     <fragment
         android:id="@+id/appSettingsFragment"
         android:name="com.nabto.edge.sharedcode.AppSettingsFragment"
-        android:label="@string/title_app_settings"
-        tools:layout="@layout/fragment_app_settings" />
+        android:label="@string/title_app_settings" />
 </navigation>

@@ -89,6 +89,8 @@ class DevicePageViewModel(
     private val _currentUser: MutableLiveData<IamUser> = MutableLiveData()
     private val _device = MutableLiveData<Device>()
 
+    private val listener = ConnectionEventListener { event, _ -> onConnectionChanged(event) }
+
     private var isPaused = false
     private var startupJob: Job? = null
     private lateinit var handle: ConnectionHandle
@@ -133,7 +135,8 @@ class DevicePageViewModel(
             val dao = database.deviceDao()
             val dev = withContext(Dispatchers.IO) { dao.get(productId, deviceId) }
             _device.postValue(dev)
-            handle = connectionManager.requestConnection(dev) { event, _ -> onConnectionChanged(event) }
+            handle = connectionManager.requestConnection(dev)
+            connectionManager.subscribe(handle, listener)
             if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {
                 // We're already connected from the home page.
                 startup()
@@ -142,7 +145,7 @@ class DevicePageViewModel(
             // we may have been handed a closed connection from the home page
             // try to reconnect it if that is the case.
             if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CLOSED) {
-                connectionManager.reconnect(handle)
+                connectionManager.connect(handle)
             }
         }
     }
@@ -237,7 +240,7 @@ class DevicePageViewModel(
      */
     fun tryReconnect() {
         if (_connState.value == AppConnectionState.DISCONNECTED) {
-            connectionManager.reconnect(handle)
+            connectionManager.connect(handle)
         } else {
             _connEvent.postEvent(AppConnectionEvent.RECONNECTED)
         }
@@ -293,7 +296,7 @@ class DevicePageViewModel(
     override fun onCleared() {
         super.onCleared()
         viewModelScope.cancel()
-        connectionManager.releaseHandle(handle)
+        connectionManager.unsubscribe(handle, listener)
     }
 }
 
@@ -307,7 +310,7 @@ class DevicePageViewModel(
 class DevicePageFragment : Fragment(), MenuProvider {
     private val TAG = this.javaClass.simpleName
 
-    private val model: DevicePageViewModel by navGraphViewModels(R.id.device_graph) {
+    private val model: DevicePageViewModel by navGraphViewModels(R.id.nav_device) {
         val productId = arguments?.getString("productId") ?: ""
         val deviceId = arguments?.getString("deviceId") ?: ""
         val connectionManager: NabtoConnectionManager by inject()
@@ -374,11 +377,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
             view.findViewById<TextView>(R.id.dp_info_appname).text = device.appName
             view.findViewById<TextView>(R.id.dp_info_devid).text = device.deviceId
             view.findViewById<TextView>(R.id.dp_info_proid).text = device.productId
-
-            // Slightly hacky way of programmatically setting toolbar title
-            // @TODO: A more "proper" way to do it could be to have an activity bound
-            //        ViewModel that lets you set the title.
-            (requireActivity() as AppCompatActivity).supportActionBar?.title = device.friendlyName
+            requireAppActivity().actionBarTitle = device.friendlyName
         })
 
         model.rtspUrl.observe(viewLifecycleOwner, Observer { rtspUrl ->

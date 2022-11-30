@@ -202,32 +202,6 @@
                             android:textColor="?attr/colorPrimaryVariant"
                             android:textSize="16sp" />
 
-                        <!-- No need to display name, its in the toolbar
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:minHeight="48dp"
-                            android:orientation="horizontal"
-                            android:paddingLeft="16dip"
-                            android:paddingRight="16dip">
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                android:layout_weight="1"
-                                android:text="@string/name" />
-
-                            <TextView
-                                android:id="@+id/dp_info_name"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                android:layout_weight="1"
-                                android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
-                        </LinearLayout>
-                        -->
-
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"

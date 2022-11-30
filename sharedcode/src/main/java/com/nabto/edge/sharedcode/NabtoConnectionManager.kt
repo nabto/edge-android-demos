@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 enum class NabtoConnectionState {
     CLOSED,
@@ -76,7 +77,7 @@ interface NabtoConnectionManager {
      * @param[listener] A [ConnectionEventListener] that will receive [NabtoConnectionEvent] events.
      * @return A [ConnectionHandle] that represents a connection to [device]
      */
-    fun requestConnection(device: Device, listener: ConnectionEventListener? = null): ConnectionHandle
+    fun requestConnection(device: Device): ConnectionHandle
 
     /**
      * Reconnected a closed connection. If the connection is already connected, this function
@@ -84,7 +85,7 @@ interface NabtoConnectionManager {
      *
      * @param[handle] The [ConnectionHandle] to reconnect
      */
-    fun reconnect(handle: ConnectionHandle)
+    fun connect(handle: ConnectionHandle)
 
     /**
      * Release a [ConnectionHandle]. The underlying connection is closed, subscribers are
@@ -140,14 +141,16 @@ interface NabtoConnectionManager {
      * Get a [LiveData] object holding a [NabtoConnectionState] representing the connection
      * state of [handle].
      *
-     * @param[handle] A valid [ConnectionHandle].
+     * @param[handle] A [ConnectionHandle].
      * @return A [LiveData] object holding a [NabtoConnectionState] object, or null if
      * [handle] is invalid.
      */
-    fun getConnectionState(handle: ConnectionHandle): LiveData<NabtoConnectionState>?
+    fun getConnectionState(handle: ConnectionHandle?): LiveData<NabtoConnectionState>?
 
     // @TODO: Documentation
     suspend fun openTunnelService(handle: ConnectionHandle, service: String): TcpTunnel
+
+    fun releaseAll()
 }
 
 class NabtoConnectionManagerImpl(
@@ -155,8 +158,9 @@ class NabtoConnectionManagerImpl(
     private val client: NabtoClient
 ): NabtoConnectionManager, LifecycleEventObserver {
     data class ConnectionData(
-        var connection: Connection,
-        val state: MutableLiveData<NabtoConnectionState>,
+        var connection: Connection?,
+        val state: AtomicReference<NabtoConnectionState>,
+        val stateLiveData: MutableLiveData<NabtoConnectionState>,
         val connectionEventsCallback: ConnectionEventsCallback,
         val options: String, // json string
         val subscribers: MutableList<ConnectionEventListener> = mutableListOf()
@@ -166,8 +170,11 @@ class NabtoConnectionManagerImpl(
     private val connectionMap = ConcurrentHashMap<ConnectionHandle, ConnectionData>()
     private var isAppInBackground = false
 
+    private val singleDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val scope = repo.getApplicationScope()
+
     // If the app goes into the background, how long do we wait before killing connections?
-    private val keepAliveTimeoutSeconds = 5L
+    private val keepAliveTimeoutSeconds = 20L
 
     init {
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
@@ -186,7 +193,7 @@ class NabtoConnectionManagerImpl(
     }
 
     private fun publish(data: ConnectionData?, event: NabtoConnectionEvent, handle: ConnectionHandle) {
-        data?.state?.postValue(when (event) {
+        val state = when (event) {
             NabtoConnectionEvent.CONNECTED -> NabtoConnectionState.CONNECTED
             NabtoConnectionEvent.CONNECTING -> NabtoConnectionState.CONNECTING
             NabtoConnectionEvent.DEVICE_DISCONNECTED -> NabtoConnectionState.CLOSED
@@ -194,7 +201,9 @@ class NabtoConnectionManagerImpl(
             NabtoConnectionEvent.CLOSED -> NabtoConnectionState.CLOSED
             NabtoConnectionEvent.PAUSED -> NabtoConnectionState.CONNECTED
             NabtoConnectionEvent.UNPAUSED -> NabtoConnectionState.CONNECTED
-        })
+        }
+        data?.stateLiveData?.postValue(state)
+        data?.state?.set(state)
 
         data?.subscribers?.forEach {
             it.onConnectionEvent(event, handle)
@@ -205,59 +214,51 @@ class NabtoConnectionManagerImpl(
         publish(connectionMap[handle], event, handle)
     }
 
-    private fun connect(handle: ConnectionHandle, makeNewConnection: Boolean = false) {
-        connectionMap[handle]?.let {
-            if (it.state.value != NabtoConnectionState.CLOSED) {
+    override fun connect(handle: ConnectionHandle) {
+        connectionMap[handle]?.let { data ->
+            if (data.state.get() != NabtoConnectionState.CLOSED) {
                 // no-op if we're already connected
                 return
             }
-
-            if (makeNewConnection) {
-                it.connection.removeConnectionEventsListener(it.connectionEventsCallback)
-                it.connection = client.createConnection()
-            }
-
             publish(handle, NabtoConnectionEvent.CONNECTING)
-            it.connection.updateOptions(it.options)
-            it.connection.addConnectionEventsListener(it.connectionEventsCallback)
 
-            repo.getApplicationScope().launch(Dispatchers.IO) {
-                try {
-                    it.connection.awaitConnect()
-                } catch (e: Exception) {
-                    if (e is NabtoRuntimeException || e is NabtoNoChannelsException) {
-                        Log.i(TAG, "Failed to connect, $e")
-                        withContext(Dispatchers.Main) {
-                            publish(handle, NabtoConnectionEvent.FAILED_TO_CONNECT)
+            data.connection = client.createConnection()
+            data.connection?.let { conn ->
+                conn.updateOptions(data.options)
+                conn.addConnectionEventsListener(data.connectionEventsCallback)
+
+                scope.launch(singleDispatcher) {
+                    try {
+                        conn.awaitConnect()
+                    } catch (e: Exception) {
+                        if (e is NabtoRuntimeException || e is NabtoNoChannelsException) {
+                            Log.i(TAG, "Failed to connect, $e")
+                            withContext(Dispatchers.Main) {
+                                publish(handle, NabtoConnectionEvent.FAILED_TO_CONNECT)
+                            }
+                        } else {
+                            throw e
                         }
-                    } else {
-                        throw e
                     }
                 }
             }
+
         }
     }
 
-    override fun reconnect(handle: ConnectionHandle) {
-        connect(handle, true)
-    }
-
-    private fun requestConnectionInternal(device: Device, listeners: MutableList<ConnectionEventListener>): ConnectionHandle {
+    override fun requestConnection(device: Device): ConnectionHandle {
         val handle = ConnectionHandle(device.productId, device.deviceId)
         if (connectionMap.containsKey(handle)) {
             // there is already an existing connection, just return the handle as-is
             Log.i(TAG, "Requested connection for ${device.deviceId} but a connection already exists")
-            listeners.forEach { subscribe(handle, it) }
             return handle
         }
-
-        val connection = client.createConnection()
 
         val connectionEventsCallback = object : ConnectionEventsCallback() {
             override fun onEvent(event: Int) {
                 when (event) {
                     CLOSED -> {
-                        if (connectionMap[handle]?.state?.value == NabtoConnectionState.CONNECTED) {
+                        if (connectionMap[handle]?.state?.get() == NabtoConnectionState.CONNECTED) {
                             publish(handle, NabtoConnectionEvent.DEVICE_DISCONNECTED)
                         }
                     }
@@ -280,33 +281,39 @@ class NabtoConnectionManagerImpl(
 
         // add new connection and subscribe to it
         connectionMap[handle] = ConnectionData(
-            connection,
+            null,
+            AtomicReference(NabtoConnectionState.CLOSED),
             MutableLiveData(NabtoConnectionState.CLOSED),
             connectionEventsCallback,
             options.toString()
         )
-        listeners.forEach { subscribe(handle, it) }
-
-        connect(handle)
         return handle
-    }
-
-    override fun requestConnection(device: Device, listener: ConnectionEventListener?): ConnectionHandle {
-        val list = mutableListOf<ConnectionEventListener>()
-        if (listener != null) {
-            list.add(listener)
-        }
-        return requestConnectionInternal(device, list)
     }
 
     // closes the connection but does not release the handle
     private fun close(handle: ConnectionHandle) {
         connectionMap[handle]?.let { data ->
-            if (data.state.value != NabtoConnectionState.CLOSED) {
+            if (data.state.get() != NabtoConnectionState.CLOSED) {
                 publish(handle, NabtoConnectionEvent.CLOSED)
-                repo.getApplicationScope().launch(Dispatchers.IO) {
-                    data.connection.close()
-                    data.connection.removeConnectionEventsListener(data.connectionEventsCallback)
+                scope.launch(singleDispatcher) {
+                    val conn = data.connection
+                    data.connection = null
+                    conn?.close()
+                    conn?.removeConnectionEventsListener(data.connectionEventsCallback)
+                }
+            }
+        }
+    }
+
+    private fun releaseData(handle: ConnectionHandle, data: ConnectionData) {
+        if (data.state.get() != NabtoConnectionState.CLOSED) {
+            publish(data, NabtoConnectionEvent.CLOSED, handle)
+            scope.launch(singleDispatcher){
+                try {
+                    data.connection?.removeConnectionEventsListener(data.connectionEventsCallback)
+                    data.connection?.close()
+                } catch (e: NabtoRuntimeException) {
+                    Log.w(TAG, "Attempt to close connection yielded $e")
                 }
             }
         }
@@ -314,15 +321,18 @@ class NabtoConnectionManagerImpl(
 
     override fun releaseHandle(handle: ConnectionHandle) {
         connectionMap.remove(handle)?.let { data ->
-            if (data.state.value != NabtoConnectionState.CLOSED) {
-                publish(data, NabtoConnectionEvent.CLOSED, handle)
-                repo.getApplicationScope().launch(Dispatchers.IO) {
-                    if (data.state.value == NabtoConnectionState.CONNECTED) data.connection.close()
-                    data.connection.removeConnectionEventsListener(data.connectionEventsCallback)
-                }
-            }
+            releaseData(handle, data)
         }
     }
+
+    override fun releaseAll() {
+        val copy = ConcurrentHashMap(connectionMap)
+        connectionMap.clear()
+        for ((k, v) in copy) {
+            releaseData(k, v)
+        }
+    }
+
 
     override fun getConnection(handle: ConnectionHandle): Connection {
         return connectionMap[handle]?.connection ?: run {
@@ -336,13 +346,14 @@ class NabtoConnectionManagerImpl(
         }
     }
 
-    override fun getConnectionState(handle: ConnectionHandle): LiveData<NabtoConnectionState>? {
-        return connectionMap[handle]?.state
+    override fun getConnectionState(handle: ConnectionHandle?): LiveData<NabtoConnectionState>? {
+        return connectionMap[handle]?.stateLiveData
     }
 
     override suspend fun openTunnelService(handle: ConnectionHandle, service: String): TcpTunnel {
         return connectionMap[handle]?.let {
-            val tunnel = it.connection.createTcpTunnel()
+            val conn = it.connection ?: run { throw IllegalStateException("Attempted to open a tunnel service on null connection!") }
+            val tunnel = conn.createTcpTunnel()
             tunnel.open(service, 0)
             return@let tunnel
         } ?: run {
@@ -355,20 +366,21 @@ class NabtoConnectionManagerImpl(
             Lifecycle.Event.ON_RESUME -> {
                 isAppInBackground = false
                 connectionMap.forEach { (handle, data) ->
-                    if (data.state.value == NabtoConnectionState.CONNECTED) {
+                    if (data.state.get() == NabtoConnectionState.CONNECTED) {
                         publish(handle, NabtoConnectionEvent.UNPAUSED)
                     }
-                    connect(handle, true)
+                    connect(handle)
                 }
             }
             Lifecycle.Event.ON_STOP -> {
                 isAppInBackground = true
                 connectionMap.forEach { (handle, data) ->
-                    if (data.state.value != NabtoConnectionState.CLOSED) {
+                    if (data.state.get() != NabtoConnectionState.CLOSED) {
                         publish(handle, NabtoConnectionEvent.PAUSED)
                     }
 
-                    repo.getApplicationScope().launch {
+                    // @TODO: We're starting 1 coroutine for each connection, not a good idea.
+                    scope.launch {
                         delay(keepAliveTimeoutSeconds * 1000)
                         if (isAppInBackground) {
                             close(handle)

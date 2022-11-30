@@ -9,9 +9,6 @@ open class NabtoConfiguration(
     /** MDNS sub type that NabtoDeviceScanner will use to search for devices on the local network */
     val MDNS_SUB_TYPE: String,
 
-    /** Shared preferences file where e.g. client's private key and display name is stored */
-    val SHARED_PREFERENCES: String,
-
     // Shared preferences keys
     val PRIVATE_KEY_PREF: String,
     val DISPLAY_NAME_PREF: String,

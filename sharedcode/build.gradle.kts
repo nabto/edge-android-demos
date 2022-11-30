@@ -48,16 +48,16 @@ dependencies {
     // Android dependencies
     api ("androidx.core:core-ktx:1.9.0")
     api ("androidx.appcompat:appcompat:1.5.1")
-    api ("com.google.android.material:material:1.6.1")
+    api ("com.google.android.material:material:1.7.0")
     api ("androidx.constraintlayout:constraintlayout:2.1.4")
-    api ("androidx.navigation:navigation-fragment-ktx:2.5.2")
-    api ("androidx.navigation:navigation-ui-ktx:2.5.2")
-    api ("androidx.navigation:navigation-dynamic-features-fragment:2.5.2")
+    api ("androidx.navigation:navigation-fragment-ktx:2.5.3")
+    api ("androidx.navigation:navigation-ui-ktx:2.5.3")
+    api ("androidx.navigation:navigation-dynamic-features-fragment:2.5.3")
     api ("androidx.legacy:legacy-support-v4:1.0.0")
     api ("androidx.lifecycle:lifecycle-runtime-ktx:2.5.1")
     api ("androidx.lifecycle:lifecycle-livedata-ktx:2.5.1")
-    api ("com.google.android.material:material:1.6.1")
     api ("com.google.android.gms:play-services-vision:20.1.3")
+    api ("androidx.preference:preference-ktx:1.2.0")
 
     // Nabto dependencies
     api ("com.nabto.edge.client:library:2.3.0")

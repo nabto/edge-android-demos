@@ -1,104 +1,72 @@
 package com.nabto.edge.sharedcode
 
-import android.app.AlertDialog
-import android.app.Dialog
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import androidx.fragment.app.DialogFragment
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceFragmentCompat
 import com.google.android.material.snackbar.Snackbar
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 
-/**
- * AppSettingsConfirmationDialogFragment extends Android's [DialogFragment] to make a
- * confirm/cancel dialog.
- */
-class AppSettingsConfirmationDialogFragment(
-    private val msg: String,
-    private val onConfirm: () -> Unit
-    ) : DialogFragment() {
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
-        AlertDialog.Builder(requireContext())
-            .setMessage(msg)
-            .setPositiveButton(getString(R.string.confirm)) { _, _ -> onConfirm() }
-            .setNegativeButton(getString(R.string.cancel)) { _, _ -> }
-            .create()
-
-    companion object {
-        const val TAG = "AppSettingsConfirmationDialog"
-    }
-}
-
-/**
- * Fragment class for fragment_app_settings.xml
- * The purpose of this Fragment is to display app-wide settings such as the user's
- * display name and options for resetting private key or device database.
- */
-class AppSettingsFragment : Fragment() {
+class AppSettingsFragment : PreferenceFragmentCompat() {
     private val repo: NabtoRepository by inject()
     private val database: DeviceDatabase by inject()
+    private val manager: NabtoConnectionManager by inject()
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_app_settings, container, false)
-    }
+    private val displayNameKey = internalConfig.DISPLAY_NAME_PREF
+    private val resetDatabaseKey = "preferences_reset_database"
+    private val resetPrivateKeyKey = "preferences_reset_private_key"
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+        val context = preferenceManager.context
+        val screen = preferenceManager.createPreferenceScreen(context)
+        val getDrawable = { drawable: Int -> AppCompatResources.getDrawable(context, drawable) }
 
-        val pkTextView = view.findViewById<TextView>(R.id.app_settings_client_pk)
-        pkTextView.text = repo.getClientPrivateKey()
+        val prefs = listOf(
+            EditTextPreference(context).apply {
+                key = displayNameKey
+                title = getString(R.string.display_name)
+                icon = getDrawable(R.drawable.ic_person)
+                summaryProvider = EditTextPreference.SimpleSummaryProvider.getInstance()
+                dialogTitle = getString(R.string.display_name)
+                dialogMessage = getString(R.string.settings_display_name_dialog_message)
+            },
 
-        val etDisplayName = view.findViewById<EditText>(R.id.app_settings_et_displayname)
-        repo.getDisplayName().value?.let {
-            etDisplayName.setText(it)
-        }
-
-        val saveButton = view.findViewById<Button>(R.id.app_settings_save_display_name)
-        saveButton.setOnClickListener {
-            if (etDisplayName.length() == 0) {
-                etDisplayName.error = "Display name cannot be empty"
-                return@setOnClickListener
-            }
-
-            repo.setDisplayName(etDisplayName.text.toString())
-            view.snack(getString(R.string.app_settings_saved_snack), Snackbar.LENGTH_SHORT)
-            clearFocusAndHideKeyboard()
-        }
-
-        val resetDatabaseButton = view.findViewById<Button>(R.id.app_settings_reset_database)
-        resetDatabaseButton.setOnClickListener {
-            val msg = getString(R.string.app_settings_database_reset_dialog)
-            val onConfirm = {
-                repo.getApplicationScope().launch(Dispatchers.IO) {
-                    database.deviceDao().deleteAll()
+            ConfirmDialogPreference(context).apply {
+                key = resetDatabaseKey
+                title = getString(R.string.reset_database_title)
+                icon = getDrawable(R.drawable.ic_list_remove)
+                summary = getString(R.string.reset_database_summary)
+                dialogTitle = getString(R.string.warning)
+                dialogMessage = getString(R.string.app_settings_database_reset_dialog)
+                onDialogClosed = { confirmed ->
+                    if (confirmed) {
+                        repo.getApplicationScope().launch {
+                            database.deviceDao().deleteAll()
+                        }
+                        view?.snack(getString(R.string.settings_reset_database_snack), Snackbar.LENGTH_SHORT)
+                    }
                 }
-                view.snack(getString(R.string.app_settings_database_reset_snack), Snackbar.LENGTH_SHORT)
-                Unit
-            }
-            AppSettingsConfirmationDialogFragment(msg, onConfirm).show(childFragmentManager, AppSettingsConfirmationDialogFragment.TAG)
-        }
+            },
 
-        val resetPrivateKeyButton = view.findViewById<Button>(R.id.app_settings_reset_client_pk)
-        resetPrivateKeyButton.setOnClickListener {
-            val msg = getString(R.string.app_settings_reset_client_pk_dialog)
-            val onConfirm = {
-                repo.resetClientPrivateKey()
-                pkTextView.text = repo.getClientPrivateKey()
-                view.snack(getString(R.string.app_settings_client_pk_snack), Snackbar.LENGTH_SHORT)
-                Unit
+            ConfirmDialogPreference(context).apply {
+                key = resetPrivateKeyKey
+                title = getString(R.string.settings_reset_pk_title)
+                icon = getDrawable(R.drawable.ic_key_reset)
+                summary = getString(R.string.settings_reset_pk_summary)
+                dialogTitle = getString(R.string.warning)
+                dialogMessage = getString(R.string.settings_reset_pk_dialog_message)
+                onDialogClosed = { confirmed ->
+                    if (confirmed) {
+                        repo.resetClientPrivateKey()
+                        manager.releaseAll()
+                        view?.snack(getString(R.string.settings_reset_pk_snack), Snackbar.LENGTH_SHORT);
+                    }
+                }
             }
-            AppSettingsConfirmationDialogFragment(msg, onConfirm).show(childFragmentManager, AppSettingsConfirmationDialogFragment.TAG)
-        }
+        )
+        prefs.forEach { pref -> screen.addPreference(pref) }
+        preferenceScreen = screen
     }
+
 }

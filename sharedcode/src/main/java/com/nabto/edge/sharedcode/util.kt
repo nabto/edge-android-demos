@@ -1,13 +1,20 @@
 package com.nabto.edge.sharedcode
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.Context
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import androidx.annotation.IdRes
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.*
 import androidx.navigation.NavController
 import androidx.navigation.navOptions
+import androidx.preference.DialogPreference
+import androidx.preference.Preference
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.snackbar.Snackbar
 
 /**
@@ -46,6 +53,7 @@ fun View.snack(
     duration: Int = Snackbar.LENGTH_LONG
 ): Snackbar {
     val snack = Snackbar.make(this, msg, duration)
+    snack.setAnchorView(R.id.bottom_nav)
     snack.show()
     return snack
 }
@@ -83,4 +91,41 @@ fun NavController.navigateAndPopUpToRoute(route: String, inclusive: Boolean = fa
 fun View.swapWith(other: View) {
     this.visibility = View.GONE
     other.visibility = View.VISIBLE
+}
+
+
+/**
+ * Why doesn't androidx.preferences have something like this by default...?
+ */
+class ConfirmDialogPreference(context: Context) : Preference(context) {
+    var dialogTitle: String = ""
+    var dialogMessage: String = ""
+    var dialogPositiveButton: String = context.getString(R.string.confirm)
+    var dialogNegativeButton: String = context.getString(R.string.cancel)
+    var onDialogClosed: (positive: Boolean) -> Unit = {}
+
+    override fun onClick() {
+        super.onClick()
+        val builder = AlertDialog.Builder(context)
+        builder
+            .setTitle(dialogTitle)
+            .setMessage(dialogMessage)
+            .setPositiveButton(dialogPositiveButton) { _, _ ->
+                onDialogClosed(true)
+            }
+            .setNegativeButton(dialogNegativeButton) { _, _ ->
+                onDialogClosed(false)
+            }
+            .create()
+            .show()
+    }
+}
+
+fun Fragment.requireAppActivity(): AppMainActivity {
+    val activity = requireActivity()
+    if (AppMainActivity::class.java.isAssignableFrom(activity.javaClass)) {
+        return activity as AppMainActivity
+    } else {
+        throw IllegalStateException("Activity does not inherit from AppMainActivity.")
+    }
 }

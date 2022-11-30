@@ -107,9 +107,11 @@ private class PairDeviceViewModel(
         val connection = manager.getConnection(handle)
         val details = iam.awaitGetDeviceDetails(connection)
         val user = iam.awaitGetCurrentUser(connection)
+        val fingerprint = connection.deviceFingerprint
         return device.copy(
             productId = details.productId,
             deviceId = details.deviceId,
+            fingerprint = fingerprint,
             SCT = user.sct,
             appName = details.appName ?: "",
             friendlyName = friendlyDeviceName
@@ -240,7 +242,7 @@ private class PairDeviceViewModel(
                     else -> {}
                 }
             }
-            handle = manager.requestConnection(device, listener)
+            handle = manager.requestConnection(device)
             observer = Observer<NabtoConnectionState> {
                 if (it == NabtoConnectionState.CONNECTED) {
                     pairAndUpdateDevice(username, friendlyName, displayName)
@@ -258,13 +260,8 @@ private class PairDeviceViewModel(
                     observer = newObserver
                 }
             }
-        }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        if (this::handle.isInitialized) {
-            manager.releaseHandle(handle)
+            manager.subscribe(handle, listener)
+            manager.connect(handle)
         }
     }
 }
