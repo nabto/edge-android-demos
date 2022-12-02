@@ -27,7 +27,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         style="@style/TextAppearance.Material3.HeadlineSmall"
-                        android:text="Discover new devices"
+                        android:text="@string/pair_landing_discover_info"
                         android:layout_gravity="center_horizontal"
                         android:padding="4dp" />
                     <TextView
@@ -41,7 +41,7 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal"
                         android:layout_margin="12dp"
-                        android:text="Go to discovered devices" />
+                        android:text="@string/pair_landing_discover_button" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -62,7 +62,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         style="@style/TextAppearance.Material3.HeadlineSmall"
-                        android:text="Pairing string"
+                        android:text="@string/pairing_string"
                         android:layout_gravity="center_horizontal"
                         android:padding="4dp" />
 
@@ -70,7 +70,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:padding="24dp"
-                        android:text="Alternatively you may enter a pairing string of the form pr=[productId],de=[deviceId]" />
+                        android:text="@string/pairing_string_info" />
 
                     <EditText
                         android:id="@+id/pair_landing_et_string"
@@ -78,7 +78,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_margin="8dp"
-                        android:hint="pr=[productId],de=[deviceId]"
+                        android:hint="@string/pairing_string_hint"
                         android:importantForAutofill="no"
                         android:inputType="textPersonName"
                         android:saveEnabled="true"/>
@@ -89,7 +89,7 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal"
                         android:layout_margin="12dp"
-                        android:text="Pair with device" />
+                        android:text="@string/pair_with_device" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

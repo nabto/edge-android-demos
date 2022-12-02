@@ -52,4 +52,10 @@
     <string name="home_remove_device">Remove device</string>
     <string name="home_delete_dialog_message">Are you sure you want to remove %1$s from your device list? This cannot be undone.</string>
     <string name="home_delete_device_snack">%1$s has been removed.</string>
+    <string name="pairing_string_info">Alternatively you may enter a pairing string received from your device.</string>
+    <string name="pairing_string_hint">p=[productId],d=[deviceId]</string>
+    <string name="pairing_string">Pairing string</string>
+    <string name="pair_landing_discover_button">Go to discovered devices</string>
+    <string name="pair_landing_discover_info">Discover new devices</string>
+    <string name="pair_with_device">Pair with device</string>
 </resources>
