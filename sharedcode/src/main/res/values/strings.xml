@@ -7,7 +7,7 @@
     <string name="pair_device_already_paired">Device has already been paired with.</string>
     <string name="pair_device_success">Successfully paired with device!</string>
     <string name="pair_device_failed_incorrect_app">Failed to pair with device, it\'s not a AppName!</string>
-    <string name="pair_device_failed">Failed to pair with device.</string>
+    <string name="pair_device_failed">Failed to pair with device: %1$s</string>
     <string name="username">Username</string>
     <string name="friendly_device_name">Friendly Device Name</string>
     <string name="pair_device_button">pair with device</string>
@@ -58,4 +58,9 @@
     <string name="pair_landing_discover_button">Go to discovered devices</string>
     <string name="pair_landing_discover_info">Discover new devices</string>
     <string name="pair_with_device">Pair with device</string>
+    <string name="pair_device_failed_coroutine">Failed to pair with device, coroutine cancelled during pairing.</string>
+    <string name="pair_device_failed_closed">Failed to pair with device because it prematurely closed.</string>
+    <string name="pair_device_failed_to_connect">Failed to connect to the device.</string>
+    <string name="pair_device_failed_disconnected">Pairing failed, device was disconnected.</string>
+    <string name="pair_device_failed_no_channels">Pairing failed, no channels could be used to open a connection.</string>
 </resources>

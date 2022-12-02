@@ -15,6 +15,8 @@ import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navOptions
 import com.nabto.edge.client.Connection
+import com.nabto.edge.client.ErrorCodes
+import com.nabto.edge.client.NabtoNoChannelsException
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.iamutil.*
 import com.nabto.edge.iamutil.ktx.*
@@ -63,9 +65,34 @@ private sealed class PairingResult {
     object FailedNoPassword : PairingResult()
 
     /**
+     * @TODO: FailedNoChannels with the current setup will never be used, see SC-1744
+     */
+    object FailedNoChannels : PairingResult()
+
+    /**
+     * Coroutine was somehow cancelled during pairing
+     */
+    object FailedCoroutineCancelled : PairingResult()
+
+    /**
+     * Device was disconnected during pairing
+     */
+    object FailedDeviceDisconnected : PairingResult()
+
+    /**
+     * Device failed to connect for pairing.
+     */
+    object FailedDeviceConnectFail : PairingResult()
+
+    /**
+     * Device connection closed during pairing.
+     */
+    object FailedDeviceClosed : PairingResult()
+
+    /**
      * Pairing failed for some other reason.
      */
-    object Failed : PairingResult()
+    data class Failed(val cause: String) : PairingResult()
 }
 
 /**
@@ -200,16 +227,20 @@ private class PairDeviceViewModel(
                 if (e.error == IamError.USERNAME_EXISTS) {
                     _pairingResult.postValue(PairingResult.FailedUsernameExists)
                 } else {
-                    _pairingResult.postValue(PairingResult.Failed)
+                    _pairingResult.postValue(PairingResult.Failed(e.error.toString()))
                 }
                 Log.i(TAG, "Attempted pairing failed with $e")
             } catch (e: NabtoRuntimeException) {
-                _pairingResult.postValue(PairingResult.Failed)
+                if (e.errorCode.errorCode == ErrorCodes.NO_CHANNELS) {
+                    _pairingResult.postValue(PairingResult.FailedNoChannels)
+                } else {
+                    _pairingResult.postValue(PairingResult.Failed(e.errorCode.name))
+                }
                 manager.unsubscribe(handle, listener)
                 manager.releaseHandle(handle)
                 Log.i(TAG, "Attempted pairing failed with $e")
             } catch (e: CancellationException) {
-                _pairingResult.postValue(PairingResult.Failed)
+                _pairingResult.postValue(PairingResult.FailedCoroutineCancelled)
                 manager.unsubscribe(handle, listener)
                 manager.releaseHandle(handle)
             }
@@ -231,13 +262,13 @@ private class PairDeviceViewModel(
                         // viewModelScope.launch { pairAndUpdateDevice(username, friendlyName, displayName) }
                     }
                     NabtoConnectionEvent.DEVICE_DISCONNECTED -> {
-                        _pairingResult.postValue(PairingResult.Failed)
+                        _pairingResult.postValue(PairingResult.FailedDeviceDisconnected)
                     }
                     NabtoConnectionEvent.FAILED_TO_CONNECT -> {
-                        _pairingResult.postValue(PairingResult.Failed)
+                        _pairingResult.postValue(PairingResult.FailedDeviceConnectFail)
                     }
                     NabtoConnectionEvent.CLOSED -> {
-                        _pairingResult.postValue(PairingResult.Failed)
+                        _pairingResult.postValue(PairingResult.FailedDeviceClosed)
                     }
                     else -> {}
                 }
@@ -304,28 +335,33 @@ class PairDeviceFragment : Fragment() {
         val button = view.findViewById<Button>(R.id.complete_pairing)
 
         model.pairingResult.observe(viewLifecycleOwner, Observer { result ->
-            val stringIdentifier = when (result) {
+            val snack = when (result) {
                 is PairingResult.Success -> {
                     // Success, update the local database of devices
                     lifecycleScope.launch(Dispatchers.IO) {
                         val dao = database.deviceDao()
                         dao.insertOrUpdate(result.dev)
                     }
-                    if (result.alreadyPaired) {
+                    getString(if (result.alreadyPaired) {
                         R.string.pair_device_already_paired
                     } else {
                         R.string.pair_device_success
-                    }
+                    })
                 }
 
-                is PairingResult.FailedIncorrectApp -> R.string.pair_device_failed_incorrect_app
-                is PairingResult.FailedUsernameExists -> R.string.pair_device_failed_username_exists
-                is PairingResult.FailedNoPassword -> R.string.pair_device_failed_no_password
-                is PairingResult.FailedInvalidPairingMode -> R.string.pair_device_failed_invalid_pairing_modes
-                is PairingResult.Failed -> R.string.pair_device_failed
+                is PairingResult.FailedIncorrectApp -> getString(R.string.pair_device_failed_incorrect_app)
+                is PairingResult.FailedUsernameExists -> getString(R.string.pair_device_failed_username_exists)
+                is PairingResult.FailedNoPassword -> getString(R.string.pair_device_failed_no_password)
+                is PairingResult.FailedInvalidPairingMode -> getString(R.string.pair_device_failed_invalid_pairing_modes)
+                is PairingResult.Failed -> getString(R.string.pair_device_failed, result.cause)
+                is PairingResult.FailedCoroutineCancelled -> getString(R.string.pair_device_failed_coroutine)
+                is PairingResult.FailedDeviceClosed -> getString(R.string.pair_device_failed_closed)
+                is PairingResult.FailedDeviceConnectFail -> getString(R.string.pair_device_failed_to_connect)
+                is PairingResult.FailedDeviceDisconnected -> getString(R.string.pair_device_failed_disconnected)
+                is PairingResult.FailedNoChannels -> getString(R.string.pair_device_failed_no_channels)
             }
 
-            view.snack(getString(stringIdentifier))
+            view.snack(snack)
             when (result) {
                 is PairingResult.Success -> {
                     findNavController().navigateAndPopUpToRoute(AppRoute.home(), true)
