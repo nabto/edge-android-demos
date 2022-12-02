@@ -13,7 +13,7 @@ private class RouteBuilder(val root: String) {
         if (queries.isNotEmpty()) {
             append("?")
             queries.forEach { (key, value) ->
-                append("${key}=${value}")
+                append("${key}=${value}&")
             }
         }
     }
@@ -38,11 +38,12 @@ object AppRoute {
 
     fun settings() = "settings"
 
-    fun pairDevice(productId: String, deviceId: String, password: String = "") =
+    fun pairDevice(productId: String, deviceId: String, password: String = "", sct: String = "") =
         RouteBuilder("pair_device")
             .pathSegment(productId)
             .pathSegment(deviceId)
             .query("password", password)
+            .query("sct", sct)
             .build()
 
     fun appDevicePage(productId: String, deviceId: String) =

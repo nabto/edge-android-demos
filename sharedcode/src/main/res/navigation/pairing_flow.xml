@@ -26,13 +26,16 @@
     <fragment
         android:id="@+id/pairDeviceFragment"
         android:name="com.nabto.edge.sharedcode.PairDeviceFragment"
-        app:route="pair_device/{productId}/{deviceId}?password={password}"
+        app:route="pair_device/{productId}/{deviceId}?password={password}&amp;sct={sct}"
         android:label="Pair with {deviceId}">
         <argument android:name="productId"
             app:argType="string" />
         <argument android:name="deviceId"
             app:argType="string" />
         <argument android:name="password"
+            app:argType="string"
+            android:defaultValue="" />
+        <argument android:name="sct"
             app:argType="string"
             android:defaultValue="" />
     </fragment>

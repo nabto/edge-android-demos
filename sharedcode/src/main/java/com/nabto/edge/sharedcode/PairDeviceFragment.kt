@@ -283,7 +283,8 @@ class PairDeviceFragment : Fragment() {
             Device(
                 productId = it.getString("productId") ?: "",
                 deviceId = it.getString("deviceId") ?: "",
-                password = it.getString("password") ?: ""
+                password = it.getString("password") ?: "",
+                SCT = it.getString("sct") ?: ""
             )
         }
         PairDeviceViewModelFactory(manager, device)
