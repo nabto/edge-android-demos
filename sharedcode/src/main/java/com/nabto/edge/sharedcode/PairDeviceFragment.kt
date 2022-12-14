@@ -363,9 +363,9 @@ class PairDeviceFragment : Fragment() {
                 is PairingResult.FailedDeviceClosed -> getString(R.string.pair_device_failed_closed)
                 is PairingResult.FailedDeviceConnectFail -> {
                     var error = ""
-                    if (result.localEc.errorCode != ErrorCodes.NONE) error += "Local error: result.localEc.name"
-                    if (result.remoteEc.errorCode != ErrorCodes.NONE) error = result.remoteEc.name
-                    if (result.directCandidatesEc.errorCode != ErrorCodes.NONE) error = result.directCandidatesEc.name
+                    if (result.localEc.errorCode != ErrorCodes.NONE) error += "\nLocal error: ${result.localEc.name}"
+                    if (result.remoteEc.errorCode != ErrorCodes.NONE) error += "\nremote error: ${result.remoteEc.name}"
+                    if (result.directCandidatesEc.errorCode != ErrorCodes.NONE) error += "\ndirect candidates error: ${result.directCandidatesEc.name}"
                     getString(R.string.pair_device_failed_to_connect, error)
                 }
                 is PairingResult.FailedDeviceDisconnected -> getString(R.string.pair_device_failed_disconnected)
