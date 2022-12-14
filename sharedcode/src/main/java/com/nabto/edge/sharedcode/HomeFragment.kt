@@ -23,6 +23,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.nabto.edge.iamutil.IamException
 import com.nabto.edge.iamutil.IamUtil
@@ -152,7 +153,7 @@ class HomeFragment : Fragment(), MenuProvider {
         recycler.layoutManager = layoutManager
 
         view.findViewById<Button>(R.id.home_pair_new_button).setOnClickListener {
-            findNavController().navigate(AppRoute.pairingFlow())
+            requireAppActivity().navigateToPairing()
         }
 
         bookmarks.getDevices().observe(viewLifecycleOwner, Observer { devices ->

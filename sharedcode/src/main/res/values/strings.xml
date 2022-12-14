@@ -60,7 +60,7 @@
     <string name="pair_with_device">Pair with device</string>
     <string name="pair_device_failed_coroutine">Failed to pair with device, coroutine cancelled during pairing.</string>
     <string name="pair_device_failed_closed">Failed to pair with device because it prematurely closed.</string>
-    <string name="pair_device_failed_to_connect">Failed to connect to the device.</string>
+    <string name="pair_device_failed_to_connect">Failed to connect to the device: %1$s</string>
     <string name="pair_device_failed_disconnected">Pairing failed, device was disconnected.</string>
     <string name="pair_device_failed_no_channels">Pairing failed, no channels could be used to open a connection.</string>
 </resources>

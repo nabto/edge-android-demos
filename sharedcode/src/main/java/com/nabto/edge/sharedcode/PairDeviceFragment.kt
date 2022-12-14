@@ -15,6 +15,7 @@ import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navOptions
 import com.nabto.edge.client.Connection
+import com.nabto.edge.client.ErrorCode
 import com.nabto.edge.client.ErrorCodes
 import com.nabto.edge.client.NabtoNoChannelsException
 import com.nabto.edge.client.NabtoRuntimeException
@@ -82,7 +83,7 @@ private sealed class PairingResult {
     /**
      * Device failed to connect for pairing.
      */
-    object FailedDeviceConnectFail : PairingResult()
+    data class FailedDeviceConnectFail(val localEc: ErrorCode, val remoteEc: ErrorCode, val directCandidatesEc: ErrorCode) : PairingResult()
 
     /**
      * Device connection closed during pairing.
@@ -265,7 +266,11 @@ private class PairDeviceViewModel(
                         _pairingResult.postValue(PairingResult.FailedDeviceDisconnected)
                     }
                     NabtoConnectionEvent.FAILED_TO_CONNECT -> {
-                        _pairingResult.postValue(PairingResult.FailedDeviceConnectFail)
+                        val conn = manager.getConnection(handle)
+                        val localEc = conn.localChannelErrorCode
+                        val remoteEc = conn.remoteChannelErrorCode
+                        val directCandidatesEc = conn.directCandidatesChannelErrorCode
+                        _pairingResult.postValue(PairingResult.FailedDeviceConnectFail(localEc, remoteEc, directCandidatesEc))
                     }
                     NabtoConnectionEvent.CLOSED -> {
                         _pairingResult.postValue(PairingResult.FailedDeviceClosed)
@@ -356,7 +361,13 @@ class PairDeviceFragment : Fragment() {
                 is PairingResult.Failed -> getString(R.string.pair_device_failed, result.cause)
                 is PairingResult.FailedCoroutineCancelled -> getString(R.string.pair_device_failed_coroutine)
                 is PairingResult.FailedDeviceClosed -> getString(R.string.pair_device_failed_closed)
-                is PairingResult.FailedDeviceConnectFail -> getString(R.string.pair_device_failed_to_connect)
+                is PairingResult.FailedDeviceConnectFail -> {
+                    var error = ""
+                    if (result.localEc.errorCode != ErrorCodes.NONE) error += "Local error: result.localEc.name"
+                    if (result.remoteEc.errorCode != ErrorCodes.NONE) error = result.remoteEc.name
+                    if (result.directCandidatesEc.errorCode != ErrorCodes.NONE) error = result.directCandidatesEc.name
+                    getString(R.string.pair_device_failed_to_connect, error)
+                }
                 is PairingResult.FailedDeviceDisconnected -> getString(R.string.pair_device_failed_disconnected)
                 is PairingResult.FailedNoChannels -> getString(R.string.pair_device_failed_no_channels)
             }

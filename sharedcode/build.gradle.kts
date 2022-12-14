@@ -60,10 +60,11 @@ dependencies {
     api ("androidx.preference:preference-ktx:1.2.0")
 
     // Nabto dependencies
-    api ("com.nabto.edge.client:library:2.3.0")
-    api ("com.nabto.edge.client:library-ktx:2.3.0")
-    api ("com.nabto.edge.client:iam-util:2.3.0")
-    api ("com.nabto.edge.client:iam-util-ktx:2.3.0")
+    val nabtoVersion = "master-SNAPSHOT"
+    api ("com.nabto.edge.client:library:$nabtoVersion")
+    api ("com.nabto.edge.client:library-ktx:$nabtoVersion")
+    api ("com.nabto.edge.client:iam-util:$nabtoVersion")
+    api ("com.nabto.edge.client:iam-util-ktx:$nabtoVersion")
 
     // Kotlin dependencies
     api ("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2")

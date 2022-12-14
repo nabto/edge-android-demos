@@ -31,6 +31,8 @@ enum class NabtoConnectionEvent {
     /** failed to connect to the device, always comes after [CONNECTING] */
     FAILED_TO_CONNECT,
 
+    FAILED_TO_CONNECT_NO_CHANNELS,
+
     /**
      * the connection is paused, it is still connected but the connection may close soon
      * serves as a warning for subscribers to stop using the connection
@@ -196,10 +198,13 @@ class NabtoConnectionManagerImpl(
         val state = when (event) {
             NabtoConnectionEvent.CONNECTED -> NabtoConnectionState.CONNECTED
             NabtoConnectionEvent.CONNECTING -> NabtoConnectionState.CONNECTING
-            NabtoConnectionEvent.DEVICE_DISCONNECTED -> NabtoConnectionState.CLOSED
-            NabtoConnectionEvent.FAILED_TO_CONNECT -> NabtoConnectionState.CLOSED
+
+            NabtoConnectionEvent.DEVICE_DISCONNECTED,
+            NabtoConnectionEvent.FAILED_TO_CONNECT_NO_CHANNELS,
+            NabtoConnectionEvent.FAILED_TO_CONNECT,
             NabtoConnectionEvent.CLOSED -> NabtoConnectionState.CLOSED
-            NabtoConnectionEvent.PAUSED -> NabtoConnectionState.CONNECTED
+
+            NabtoConnectionEvent.PAUSED,
             NabtoConnectionEvent.UNPAUSED -> NabtoConnectionState.CONNECTED
         }
         data?.stateLiveData?.postValue(state)
@@ -231,13 +236,11 @@ class NabtoConnectionManagerImpl(
                     try {
                         conn.awaitConnect()
                     } catch (e: Exception) {
-                        if (e is NabtoRuntimeException || e is NabtoNoChannelsException) {
-                            Log.i(TAG, "Failed to connect, $e")
-                            withContext(Dispatchers.Main) {
-                                publish(handle, NabtoConnectionEvent.FAILED_TO_CONNECT)
-                            }
-                        } else {
-                            throw e
+                        Log.i(TAG, "Failed to connect, $e")
+                        when (e) {
+                            is NabtoNoChannelsException -> publish(handle, NabtoConnectionEvent.FAILED_TO_CONNECT_NO_CHANNELS)
+                            is NabtoRuntimeException -> publish(handle, NabtoConnectionEvent.FAILED_TO_CONNECT)
+                            else -> throw e
                         }
                     }
                 }

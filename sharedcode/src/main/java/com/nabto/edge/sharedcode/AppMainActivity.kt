@@ -48,6 +48,11 @@ class AppMainActivity : AppCompatActivity() {
         }
     }
 
+    fun navigateToPairing()  {
+        val v = findViewById<BottomNavigationView>(R.id.bottom_nav)
+        v.findViewById<View>(R.id.nav_pairing).performClick()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.app_main_activity)
