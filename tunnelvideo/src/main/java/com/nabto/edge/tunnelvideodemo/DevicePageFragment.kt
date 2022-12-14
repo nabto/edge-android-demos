@@ -102,9 +102,9 @@ class DevicePageViewModel(
     val tunnelPort: LiveData<Int>
         get() = _tunnelPort
 
-    data class RTSPURL(val port: Int, val path: String) {
+    data class RTSPURL(val port: Int, val path: String, val auth: String) {
         override fun toString(): String {
-            return "rtsp://127.0.0.1:$port$path"
+            return "rtsp://${auth}127.0.0.1:$port$path"
         }
     }
 
@@ -274,7 +274,7 @@ class DevicePageViewModel(
                 _connState.postValue(AppConnectionState.CONNECTED)
                 _tunnelPort.postValue(it.localPort)
 
-                val endpoint: String = customEndpoint.ifEmpty {
+                val url = run {
                     val coap =
                         connectionManager.createCoap(handle, "GET", "/tcp-tunnels/services/rtsp")
                     coap.execute()
@@ -293,10 +293,15 @@ class DevicePageViewModel(
 
                     val payload = Cbor.decodeFromByteArray<ServiceInfo>(coap.responsePayload)
 
-                    payload.metadata.getOrDefault("rtsp-path", NabtoConfig.RTSP_ENDPOINT)
+                    val ep = customEndpoint.ifEmpty { payload.metadata.getOrDefault("rtsp-path", NabtoConfig.RTSP_ENDPOINT) }
+                    val username = payload.metadata.getOrDefault("rtsp-username", "")
+                    val password = payload.metadata.getOrDefault("rtsp-password", "")
+                    val auth = if (username.isEmpty()) "" else "${username}:${password}@"
+
+                    RTSPURL(it.localPort, ep, auth)
                 }
 
-                _rtspUrl.postValue(RTSPURL(it.localPort, endpoint))
+                _rtspUrl.postValue(url)
             }
         }
     }
