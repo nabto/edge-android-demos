@@ -60,7 +60,7 @@ dependencies {
     api ("androidx.preference:preference-ktx:1.2.0")
 
     // Nabto dependencies
-    val nabtoVersion = "master-SNAPSHOT"
+    val nabtoVersion = "2.4.0"
     api ("com.nabto.edge.client:library:$nabtoVersion")
     api ("com.nabto.edge.client:library-ktx:$nabtoVersion")
     api ("com.nabto.edge.client:iam-util:$nabtoVersion")
