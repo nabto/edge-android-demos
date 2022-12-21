@@ -314,7 +314,15 @@ class NabtoConnectionManagerImpl(
                 scope.launch(singleDispatcher) {
                     val conn = data.connection
                     data.connection = null
-                    conn?.close()
+                    try {
+                        conn?.close()
+                    } catch (e: NabtoRuntimeException) {
+                        if (e.errorCode.errorCode == ErrorCodes.NOT_CONNECTED) {
+                            Log.w(TAG, "Tried to close unconnected connection!")
+                        } else {
+                            throw e
+                        }
+                    }
                     conn?.removeConnectionEventsListener(data.connectionEventsCallback)
                 }
             }
