@@ -1,7 +1,10 @@
 package com.nabto.edge.sharedcode
 
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.preference.DialogPreference
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceFragmentCompat
 import com.google.android.material.snackbar.Snackbar
@@ -16,6 +19,24 @@ class AppSettingsFragment : PreferenceFragmentCompat() {
     private val displayNameKey = internalConfig.DISPLAY_NAME_PREF
     private val resetDatabaseKey = "preferences_reset_database"
     private val resetPrivateKeyKey = "preferences_reset_private_key"
+
+    private fun getAppVersion(): String {
+        val manager = activity?.packageManager
+        val name = activity?.packageName
+        val versionName = name?.let {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    manager?.getPackageInfo(it, PackageManager.PackageInfoFlags.of(0))?.versionName
+                } else {
+                    @Suppress("DEPRECATION") manager?.getPackageInfo(it, 0)?.versionName
+                }
+            } catch (e: PackageManager.NameNotFoundException) {
+                null
+            }
+        }
+
+        return versionName ?: "0.0"
+    }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         val context = preferenceManager.context
@@ -63,6 +84,20 @@ class AppSettingsFragment : PreferenceFragmentCompat() {
                         view?.snack(getString(R.string.settings_reset_pk_snack), Snackbar.LENGTH_SHORT);
                     }
                 }
+            },
+
+            BasicDialogPreference(context).apply {
+                title = getString(R.string.settings_about_title)
+                icon = getDrawable(R.drawable.ic_questionmark)
+                summary = getString(R.string.settings_about_summary)
+                dialogTitle = "About ${context.getString(R.string.app_name)}"
+                dialogMessage = """
+                    
+                    ${context.getString(R.string.app_name)} version ${getAppVersion()}
+                    Nabto Client SDK version ${repo.getClientVersion()}
+                    Edge-Client-Android version ${BuildConfig.NABTO_WRAPPER_VERSION}
+                    
+                """.trimIndent()
             }
         )
         prefs.forEach { pref -> screen.addPreference(pref) }

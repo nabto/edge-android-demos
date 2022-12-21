@@ -6,12 +6,16 @@ plugins {
     id("kotlinx-serialization")
 }
 
+// We keep this here so it can be exposed to BuildConfig.
+val nabtoWrapperVersion = "2.4.0"
+
 android {
     compileSdk = 33
 
     defaultConfig {
         minSdk = 24
-        targetSdk = 32
+        targetSdk = 33
+        buildConfigField("String", "NABTO_WRAPPER_VERSION", "\"${nabtoWrapperVersion}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
@@ -60,11 +64,10 @@ dependencies {
     api ("androidx.preference:preference-ktx:1.2.0")
 
     // Nabto dependencies
-    val nabtoVersion = "2.4.0"
-    api ("com.nabto.edge.client:library:$nabtoVersion")
-    api ("com.nabto.edge.client:library-ktx:$nabtoVersion")
-    api ("com.nabto.edge.client:iam-util:$nabtoVersion")
-    api ("com.nabto.edge.client:iam-util-ktx:$nabtoVersion")
+    api ("com.nabto.edge.client:library:$nabtoWrapperVersion")
+    api ("com.nabto.edge.client:library-ktx:$nabtoWrapperVersion")
+    api ("com.nabto.edge.client:iam-util:$nabtoWrapperVersion")
+    api ("com.nabto.edge.client:iam-util-ktx:$nabtoWrapperVersion")
 
     // Kotlin dependencies
     api ("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2")

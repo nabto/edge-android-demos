@@ -45,6 +45,11 @@ interface NabtoRepository {
      * Set the display name of the user.
      */
     fun setDisplayName(displayName: String)
+
+    /**
+     * Get Client SDK version
+     */
+    fun getClientVersion(): String
 }
 
 class NabtoRepositoryImpl(
@@ -121,6 +126,10 @@ class NabtoRepositoryImpl(
             putString(key, displayName)
             apply()
         }
+    }
+
+    override fun getClientVersion(): String {
+        return nabtoClient.version()
     }
 
     override fun getScannedDevices(): LiveData<List<Device>> {

@@ -63,4 +63,8 @@
     <string name="pair_device_failed_to_connect">Failed to connect to the device %1$s</string>
     <string name="pair_device_failed_disconnected">Pairing failed, device was disconnected.</string>
     <string name="pair_device_failed_no_channels">Pairing failed, no channels could be used to open a connection.</string>
+    <string name="ok">Ok</string>
+    <string name="app_name">Edge App</string>
+    <string name="settings_about_summary">Information about this app and Nabto</string>
+    <string name="settings_about_title">About</string>
 </resources>

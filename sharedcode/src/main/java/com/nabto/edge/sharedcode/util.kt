@@ -6,6 +6,7 @@ import android.content.Context
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
 import androidx.annotation.IdRes
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.fragment.app.Fragment
@@ -118,6 +119,24 @@ class ConfirmDialogPreference(context: Context) : Preference(context) {
             }
             .create()
             .show()
+    }
+}
+
+class BasicDialogPreference(context: Context) : Preference(context) {
+    var dialogTitle: String = ""
+    var dialogMessage: String = ""
+    var dialogPositiveButton: String = context.getString(R.string.ok)
+
+    override fun onClick() {
+        super.onClick()
+        val builder = AlertDialog.Builder(context)
+        builder.apply {
+            setTitle(dialogTitle)
+            setMessage(dialogMessage)
+            setPositiveButton(dialogPositiveButton) { _, _ -> }
+            create()
+            show()
+        }
     }
 }
 
