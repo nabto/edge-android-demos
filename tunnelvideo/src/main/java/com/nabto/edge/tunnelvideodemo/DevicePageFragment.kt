@@ -461,20 +461,10 @@ class DevicePageFragment : Fragment(), MenuProvider {
                 loadingSpinner.visibility = View.INVISIBLE
                 lostConnectionBar.visibility = View.GONE
                 swipeRefreshLayout.visibility = View.VISIBLE
-
-                lostConnectionBar.animate()
-                    .translationY(-lostConnectionBar.height.toFloat())
-                mainLayout.animate()
-                    .translationY(0f)
             }
 
             AppConnectionState.DISCONNECTED -> {
                 lostConnectionBar.visibility = View.VISIBLE
-                lostConnectionBar.animate()
-                    .translationY(0f)
-                mainLayout.animate()
-                    .translationY(lostConnectionBar.height.toFloat())
-
                 exoPlayer.stop()
             }
         }
