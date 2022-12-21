@@ -1,5 +1,7 @@
 package com.nabto.edge.sharedcode
 
+import android.net.ConnectivityManager
+import android.net.Network
 import android.util.Log
 import androidx.lifecycle.*
 import com.nabto.edge.client.*
@@ -7,7 +9,6 @@ import com.nabto.edge.client.ktx.awaitConnect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -157,7 +158,8 @@ interface NabtoConnectionManager {
 
 class NabtoConnectionManagerImpl(
     private val repo: NabtoRepository,
-    private val client: NabtoClient
+    private val client: NabtoClient,
+    private val connectivityManager: ConnectivityManager
 ): NabtoConnectionManager, LifecycleEventObserver {
     data class ConnectionData(
         var connection: Connection?,
@@ -170,6 +172,7 @@ class NabtoConnectionManagerImpl(
 
     private val TAG = "NabtoConnectionManager"
     private val connectionMap = ConcurrentHashMap<ConnectionHandle, ConnectionData>()
+    private var activeNetwork = connectivityManager.activeNetwork
     private var isAppInBackground = false
 
     private val singleDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -180,6 +183,16 @@ class NabtoConnectionManagerImpl(
 
     init {
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+
+        connectivityManager.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                onNetworkAvailable(network)
+            }
+
+            override fun onLost(network: Network) {
+                onNetworkLost(network)
+            }
+        })
     }
 
     override fun subscribe(handle: ConnectionHandle, listener: ConnectionEventListener) {
@@ -362,6 +375,25 @@ class NabtoConnectionManagerImpl(
         } ?: run {
             throw IllegalStateException("Attempted to open a tunnel service on an invalid handle!")
         }
+    }
+
+    private fun onNetworkAvailable(network: Network) {
+        if (connectivityManager.activeNetwork == network && activeNetwork != network)
+        {
+            connectionMap.forEach { (handle, _) -> close(handle) }
+        }
+        activeNetwork = connectivityManager.activeNetwork
+
+        connectionMap.forEach { (handle, _) ->
+            connect(handle)
+        }
+    }
+
+    private fun onNetworkLost(network: Network) {
+        connectionMap.forEach { (handle, _) ->
+            close(handle)
+        }
+        activeNetwork = connectivityManager.activeNetwork
     }
 
     override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {

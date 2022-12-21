@@ -1,6 +1,8 @@
 package com.nabto.edge.sharedcode
 
 import android.app.Application
+import android.content.Context
+import android.net.ConnectivityManager
 import androidx.room.Room
 import com.nabto.edge.client.NabtoClient
 import kotlinx.coroutines.CoroutineScope
@@ -11,7 +13,7 @@ import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 
-private fun appModule(client: NabtoClient, scanner: NabtoDeviceScanner, scope: CoroutineScope) =
+private fun appModule(client: NabtoClient, scanner: NabtoDeviceScanner, scope: CoroutineScope, connectivityManager: ConnectivityManager) =
     module {
         single {
             Room.databaseBuilder(
@@ -24,7 +26,7 @@ private fun appModule(client: NabtoClient, scanner: NabtoDeviceScanner, scope: C
         single<NabtoRepository> { NabtoRepositoryImpl(androidApplication(), client, scope, scanner) }
 
         single<NabtoConnectionManager> {
-            NabtoConnectionManagerImpl(get(), client)
+            NabtoConnectionManagerImpl(get(), client, connectivityManager)
         }
 
         single<NabtoBookmarksRepository> {
@@ -39,10 +41,11 @@ open class NabtoAndroidApplication : Application() {
 
     fun initializeNabtoApplication(config: NabtoConfiguration) {
         SetNabtoConfiguration(config)
+        val connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         startKoin {
             androidLogger()
             androidContext(this@NabtoAndroidApplication)
-            modules(appModule(nabtoClient, scanner, applicationScope))
+            modules(appModule(nabtoClient, scanner, applicationScope, connectivityManager))
         }
     }
 }
