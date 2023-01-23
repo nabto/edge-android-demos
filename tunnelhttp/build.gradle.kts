@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = "com.nabto.edge.tunnelhttpdemo"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 32
         versionCode = 11
         versionName = "1.1"

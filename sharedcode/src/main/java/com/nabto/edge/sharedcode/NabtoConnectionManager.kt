@@ -9,6 +9,7 @@ import com.nabto.edge.client.ktx.awaitConnect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -250,12 +251,21 @@ class NabtoConnectionManagerImpl(
                         conn.awaitConnect()
                     } catch (e: Exception) {
                         Log.i(TAG, "Failed to connect, $e")
-                        when (e) {
-                            is NabtoNoChannelsException -> publish(handle, NabtoConnectionEvent.FAILED_TO_CONNECT_NO_CHANNELS)
-                            is NabtoRuntimeException -> publish(handle, NabtoConnectionEvent.FAILED_TO_CONNECT)
-                            else -> throw e
+                        withContext(Dispatchers.Main) {
+                            when (e) {
+                                is NabtoNoChannelsException -> publish(
+                                    handle,
+                                    NabtoConnectionEvent.FAILED_TO_CONNECT_NO_CHANNELS
+                                )
+                                is NabtoRuntimeException -> publish(
+                                    handle,
+                                    NabtoConnectionEvent.FAILED_TO_CONNECT
+                                )
+                                else -> throw e
+                            }
                         }
                     }
+
                 }
             }
 

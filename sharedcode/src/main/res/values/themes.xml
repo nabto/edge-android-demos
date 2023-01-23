@@ -16,4 +16,10 @@
         <item name="android:windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
+
+    <style name="AppToolbar" parent="Theme.NabtoDemo">
+        <item name="android:textColorPrimary">?attr/colorOnPrimary</item>
+        <item name="android:textColorSecondary">?attr/colorOnPrimary</item>
+        <item name="android:iconTint">?attr/colorOnPrimary</item>
+    </style>
 </resources>
