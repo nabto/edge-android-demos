@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.ir.backend.js.transformers.irToJs.argumentsWithVarargAsSingleArray
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -15,6 +17,24 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            ndkBuild {
+                val gstRoot: String? =
+                    if (project.hasProperty("gstAndroidRoot")) {
+                        project.property("gstAndroidRoot") as String
+                    } else {
+                        System.getenv()["GSTREAMER_ROOT_ANDROID"]
+                    }
+
+                gstRoot?.let {
+                    arguments("NDK_APPLICATION_MK=src/main/jni/Application.mk", "GSTREAMER_JAVA_SRC_DIR=src/main/java", "GSTREAMER_ROOT_ANDROID=$gstRoot", "GSTREAMER_ASSETS_DIR=src/main/assets")
+                    targets("tunnel-video")
+                    abiFilters("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+                } ?: run {
+                    throw GradleException("GSTREAMER_ROOT_ANDROID must be set, or define gstAndroidRoot in your gradle.properties")
+                }
+            }
+        }
     }
 
     buildTypes {
@@ -33,6 +53,11 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
         freeCompilerArgs = freeCompilerArgs + "-Xjvm-default=all"
+    }
+    externalNativeBuild {
+        ndkBuild {
+            path ("src/main/jni/Android.mk")
+        }
     }
 }
 
