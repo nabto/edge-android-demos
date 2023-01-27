@@ -1,6 +1,7 @@
 package com.nabto.edge.sharedcode
 
 import android.content.Context
+import android.os.Build
 import android.provider.Settings
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -78,7 +79,11 @@ class NabtoRepositoryImpl(
         run {
             val key = internalConfig.DISPLAY_NAME_PREF
             if (!pref.contains(key)) {
-                val name = Settings.Secure.getString(context.contentResolver, "bluetooth_name");
+                val name = if (Build.VERSION.SDK_INT <= 31) {
+                    Settings.Secure.getString(context.contentResolver, "bluetooth_name")
+                } else {
+                    Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
+                }
                 with(pref.edit()) {
                     putString(key, name)
                     apply()

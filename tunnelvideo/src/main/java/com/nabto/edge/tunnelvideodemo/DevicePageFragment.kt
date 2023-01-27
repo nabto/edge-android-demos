@@ -13,11 +13,10 @@ import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.exoplayer2.DefaultLoadControl
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.*
 import com.google.android.exoplayer2.source.rtsp.RtspMediaSource
 import com.google.android.exoplayer2.ui.StyledPlayerView
+import com.google.android.exoplayer2.util.EventLogger
 import com.nabto.edge.client.ErrorCodes
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.TcpTunnel
@@ -354,6 +353,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
             }.build()
             setLoadControl(loadControl)
         }.build()
+
+        exoPlayer.addAnalyticsListener(EventLogger())
     }
 
     override fun onCreateView(
@@ -367,6 +368,13 @@ class DevicePageFragment : Fragment(), MenuProvider {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
+
+        exoPlayer.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                view.snack("ExoPlayer failed to play video: ${error.errorCodeName}")
+                Log.w(TAG, "ExoPlayer threw exception $error")
+            }
+        })
 
         mainLayout = view.findViewById(R.id.dp_main)
         swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
