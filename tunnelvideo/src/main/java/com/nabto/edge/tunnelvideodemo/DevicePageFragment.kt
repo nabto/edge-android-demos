@@ -1,5 +1,6 @@
 package com.nabto.edge.tunnelvideodemo
 
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -189,7 +190,7 @@ class DevicePageViewModel(
                 val user = iam.awaitGetCurrentUser(connectionManager.getConnection(handle))
                 _currentUser.postValue(user)
             } catch (e: IamException) {
-                Log.w(TAG, "Startub job received ${e.message}")
+                Log.w(TAG, "Startup job received ${e.message}")
                 _connEvent.postEvent(AppConnectionEvent.FAILED_UNKNOWN)
             } catch (e: NabtoRuntimeException) {
                 Log.w(TAG, "Startup job received ${e.message}")
@@ -340,22 +341,7 @@ class DevicePageFragment : Fragment(), MenuProvider {
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var loadingSpinner: View
     private lateinit var etPath: EditText
-
-    private lateinit var videoPlayer: StyledPlayerView
-    private lateinit var exoPlayer: ExoPlayer
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        exoPlayer = ExoPlayer.Builder(requireActivity()).apply {
-            val loadControl = DefaultLoadControl.Builder().apply {
-                setBufferDurationsMs(1000, 2000, 1000, 1000)
-            }.build()
-            setLoadControl(loadControl)
-        }.build()
-
-        exoPlayer.addAnalyticsListener(EventLogger())
-    }
+    private lateinit var videoController: VideoController
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -369,21 +355,14 @@ class DevicePageFragment : Fragment(), MenuProvider {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
-        exoPlayer.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                view.snack("ExoPlayer failed to play video: ${error.errorCodeName}")
-                Log.w(TAG, "ExoPlayer threw exception $error")
-            }
-        })
+        videoController = VideoController(this.requireContext(), this.viewLifecycleOwner, view.findViewById(R.id.surface_view))
 
         mainLayout = view.findViewById(R.id.dp_main)
         swipeRefreshLayout = view.findViewById(R.id.dp_swiperefresh)
         lostConnectionBar = view.findViewById(R.id.dp_lost_connection_bar)
         loadingSpinner =  view.findViewById(R.id.dp_loading)
-        videoPlayer = view.findViewById(R.id.video_player)
         etPath = view.findViewById(R.id.et_rtsp_path)
 
-        videoPlayer.player = exoPlayer
 
         model.connectionState.observe(viewLifecycleOwner, Observer { state -> onConnectionStateChanged(view, state) })
         model.connectionEvent.observe(viewLifecycleOwner) { event -> onConnectionEvent(view, event) }
@@ -406,28 +385,8 @@ class DevicePageFragment : Fragment(), MenuProvider {
         model.rtspUrl.observe(viewLifecycleOwner, Observer { rtspUrl ->
             view.findViewById<TextView>(R.id.dp_info_url).text = rtspUrl.toString()
             etPath.setText(rtspUrl.path)
-            exoPlayer.apply {
-                Log.i(TAG, "Using url $rtspUrl")
-                val item = MediaItem.Builder().apply {
-                    setUri(rtspUrl.toString())
-                    setLiveConfiguration(
-                        MediaItem.LiveConfiguration.Builder().apply {
-                            setTargetOffsetMs(300)
-                            setMaxPlaybackSpeed(1.04f)
-                        }.build()
-                    )
-                }.build()
-                val source = RtspMediaSource.Factory()
-                    .setForceUseRtpTcp(true)
-                    .createMediaSource(item)
-                setMediaSource(source)
-                playWhenReady = true
-                prepare()
-                this.isCurrentMediaItemLive
-            }
+            videoController.setMediaUri(Uri.parse(rtspUrl.toString()))
         })
-
-        videoPlayer.useController = false
 
         view.findViewById<Button>(R.id.dp_refresh_video).setOnClickListener {
             lifecycleScope.launch {
@@ -435,21 +394,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
                 model.startTunnelService()
             }
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        exoPlayer.release()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        exoPlayer.playWhenReady = false
-    }
-
-    override fun onResume() {
-        super.onResume()
-        exoPlayer.playWhenReady = true
     }
 
     private fun refresh() {
@@ -473,7 +417,6 @@ class DevicePageFragment : Fragment(), MenuProvider {
 
             AppConnectionState.DISCONNECTED -> {
                 lostConnectionBar.visibility = View.VISIBLE
-                exoPlayer.stop()
             }
         }
     }
