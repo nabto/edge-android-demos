@@ -14,10 +14,6 @@ import androidx.lifecycle.*
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.exoplayer2.*
-import com.google.android.exoplayer2.source.rtsp.RtspMediaSource
-import com.google.android.exoplayer2.ui.StyledPlayerView
-import com.google.android.exoplayer2.util.EventLogger
 import com.nabto.edge.client.ErrorCodes
 import com.nabto.edge.client.NabtoRuntimeException
 import com.nabto.edge.client.TcpTunnel

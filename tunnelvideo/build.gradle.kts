@@ -1,4 +1,5 @@
-import org.jetbrains.kotlin.ir.backend.js.transformers.irToJs.argumentsWithVarargAsSingleArray
+import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
@@ -19,19 +20,27 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             ndkBuild {
+                val properties = Properties()
+                properties.load(project.rootProject.file("local.properties").inputStream())
+
+                val propertiesKey = "gstAndroidRoot"
+                val envKey = "GSTREAMER_ROOT_ANDROID"
                 val gstRoot: String? =
-                    if (project.hasProperty("gstAndroidRoot")) {
-                        project.property("gstAndroidRoot") as String
+                    if (project.properties.containsKey(propertiesKey)) {
+                        project.properties[propertiesKey] as String
+                    } else if (properties.containsKey(propertiesKey)) {
+                        properties[propertiesKey] as String
                     } else {
-                        System.getenv()["GSTREAMER_ROOT_ANDROID"]
+                        System.getenv()[envKey]
                     }
 
                 gstRoot?.let {
-                    arguments("NDK_APPLICATION_MK=src/main/jni/Application.mk", "GSTREAMER_JAVA_SRC_DIR=src/main/java", "GSTREAMER_ROOT_ANDROID=$gstRoot", "GSTREAMER_ASSETS_DIR=src/main/assets")
+                    val main = "src/main"
+                    arguments("NDK_APPLICATION_MK=$main/jni/Application.mk", "GSTREAMER_JAVA_SRC_DIR=$main/java", "GSTREAMER_ROOT_ANDROID=$gstRoot", "GSTREAMER_ASSETS_DIR=$main/assets")
                     targets("tunnel-video")
                     abiFilters("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
                 } ?: run {
-                    throw GradleException("GSTREAMER_ROOT_ANDROID must be set, or define gstAndroidRoot in your gradle.properties")
+                    throw GradleException("$envKey must be set, or define $propertiesKey in your local.properties or gradle.properties")
                 }
             }
         }
@@ -64,14 +73,12 @@ android {
 dependencies {
     // Dependencies are all pulled from sharedcode module
     implementation (project(mapOf("path" to ":sharedcode")))
-
-    // Exoplayer
-    implementation ("com.google.android.exoplayer:exoplayer:2.18.1")
+    implementation("com.google.android.exoplayer:exoplayer-core:2.18.2")
 
     implementation("androidx.core:core-ktx:1.9.0")
-    implementation("androidx.appcompat:appcompat:1.5.1")
-    implementation("com.google.android.material:material:1.6.1")
+    implementation("androidx.appcompat:appcompat:1.6.0")
+    implementation("com.google.android.material:material:1.8.0")
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.3")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.4.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
