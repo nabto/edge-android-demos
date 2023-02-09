@@ -335,7 +335,7 @@ static void* app_main(void* userdata)
     return NULL;
 }
 
-static void gst_nabto_init(JNIEnv* env, jobject this)
+static void gst_controller_start(JNIEnv* env, jobject this)
 {
     Context* ctx = GET_CONTEXT(env, this);
     if (!ctx)
@@ -353,7 +353,7 @@ static void gst_nabto_init(JNIEnv* env, jobject this)
     pthread_create(&gst_app_thread, NULL, &app_main, ctx);
 }
 
-static void gst_nabto_set_uri(JNIEnv* env, jobject this, jstring uri)
+static void gst_media_set_uri(JNIEnv* env, jobject this, jstring uri)
 {
     Context* ctx = GET_CONTEXT(env, this);
     if (!ctx || !ctx->pipeline)
@@ -372,7 +372,7 @@ static void gst_nabto_set_uri(JNIEnv* env, jobject this, jstring uri)
     ctx->is_live = (gst_element_set_state(ctx->pipeline, ctx->target_state) == GST_STATE_CHANGE_NO_PREROLL);
 }
 
-static void gst_nabto_finalize(JNIEnv* env, jobject this)
+static void gst_finalize(JNIEnv* env, jobject this)
 {
     Context* ctx = GET_CONTEXT(env, this);
     if (!ctx)
@@ -391,7 +391,7 @@ static void gst_nabto_finalize(JNIEnv* env, jobject this)
     SET_CONTEXT(env, this, NULL);
 }
 
-static void gst_nabto_play(JNIEnv* env, jobject this)
+static void gst_media_play(JNIEnv* env, jobject this)
 {
     Context* ctx = GET_CONTEXT(env, this);
     if (!ctx)
@@ -404,7 +404,7 @@ static void gst_nabto_play(JNIEnv* env, jobject this)
     ctx->is_live = (gst_element_set_state(ctx->pipeline, ctx->target_state) == GST_STATE_CHANGE_NO_PREROLL);
 }
 
-static void gst_nabto_pause(JNIEnv* env, jobject this)
+static void gst_media_pause(JNIEnv* env, jobject this)
 {
     Context* ctx = GET_CONTEXT(env, this);
     if (!ctx)
@@ -470,7 +470,7 @@ static void gst_surface_finalize(JNIEnv* env, jobject this)
     ctx->initialized = FALSE;
 }
 
-static jboolean gst_class_init(JNIEnv *env, jobject this) {
+static jboolean gst_controller_init(JNIEnv *env, jobject this) {
     jclass cls = (*env)->GetObjectClass(env, this);
     g_context_field_id = (*env)->GetFieldID(env, cls, GST_CONTEXT_FIELD_NAME, "J");
     Context* ctx = calloc(1, sizeof(Context));
@@ -491,14 +491,14 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     UNUSED(reserved);
     JNINativeMethod native_methods[] = {
-        {"gstInit", "()V",                              gst_nabto_init},
-        {"gstFinalize", "()V",                          gst_nabto_finalize},
-        {"gstSetMediaUri", "(Ljava/lang/String;)V",     gst_nabto_set_uri},
-        {"gstPlay", "()V",                              gst_nabto_play},
-        {"gstPause", "()V",                             gst_nabto_pause},
+        {"gstInit", "()V",                              gst_controller_start},
+        {"gstFinalize", "()V",                          gst_finalize},
+        {"gstSetMediaUri", "(Ljava/lang/String;)V",     gst_media_set_uri},
+        {"gstPlay", "()V",                              gst_media_play},
+        {"gstPause", "()V",                             gst_media_pause},
         {"gstSurfaceInit", "(Landroid/view/Surface;)V", gst_surface_init},
         {"gstSurfaceFinalize", "()V",                   gst_surface_finalize},
-        {"gstClassInit", "()Z",                         gst_class_init}
+        {"gstClassInit", "()Z",                         gst_controller_init}
     };
 
     JNIEnv* env = NULL;
