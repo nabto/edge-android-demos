@@ -10,6 +10,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Required
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -162,12 +167,24 @@ class NabtoConnectionManagerImpl(
     private val client: NabtoClient,
     private val connectivityManager: ConnectivityManager
 ): NabtoConnectionManager, LifecycleEventObserver {
+    @Serializable
+    data class ConnectionOptions(
+        @Required var ProductId: String,
+        @Required var DeviceId: String,
+        @Required var ServerKey: String,
+        @Required var PrivateKey: String,
+        @Required var ServerConnectToken: String,
+        var KeepAliveInterval: Int,
+        var KeepAliveRetryInterval: Int,
+        var KeepAliveMaxRetries: Int
+    )
+
     data class ConnectionData(
         var connection: Connection?,
         val state: AtomicReference<NabtoConnectionState>,
         val stateLiveData: MutableLiveData<NabtoConnectionState>,
         val connectionEventsCallback: ConnectionEventsCallback,
-        val options: String, // json string
+        var options: ConnectionOptions,
         val subscribers: MutableList<ConnectionEventListener> = mutableListOf()
     )
 
@@ -243,7 +260,8 @@ class NabtoConnectionManagerImpl(
 
             data.connection = client.createConnection()
             data.connection?.let { conn ->
-                conn.updateOptions(data.options)
+                val opts = Json.encodeToString(data.options)
+                conn.updateOptions(opts)
                 conn.addConnectionEventsListener(data.connectionEventsCallback)
 
                 scope.launch(singleDispatcher) {
@@ -277,6 +295,9 @@ class NabtoConnectionManagerImpl(
         if (connectionMap.containsKey(handle)) {
             // there is already an existing connection, just return the handle as-is
             Log.i(TAG, "Requested connection for ${device.deviceId} but a connection already exists")
+            connectionMap[handle]?.options?.apply {
+                ServerConnectToken = device.SCT
+            }
             return handle
         }
 
@@ -295,15 +316,16 @@ class NabtoConnectionManagerImpl(
             }
         }
 
-        val options = JSONObject()
-        options.put("ProductId", device.productId)
-        options.put("DeviceId", device.deviceId)
-        options.put("ServerKey", internalConfig.SERVER_KEY)
-        options.put("PrivateKey", repo.getClientPrivateKey())
-        options.put("ServerConnectToken", device.SCT)
-        options.put("KeepAliveInterval", 2000)
-        options.put("KeepAliveRetryInterval", 2000)
-        options.put("KeepAliveMaxRetries", 5)
+        val options = ConnectionOptions(
+            ProductId = device.productId,
+            DeviceId = device.deviceId,
+            ServerKey = internalConfig.SERVER_KEY,
+            PrivateKey = repo.getClientPrivateKey(),
+            ServerConnectToken = device.SCT,
+            KeepAliveInterval = 2000,
+            KeepAliveRetryInterval = 2000,
+            KeepAliveMaxRetries = 5
+        )
 
         // add new connection and subscribe to it
         connectionMap[handle] = ConnectionData(
@@ -311,7 +333,7 @@ class NabtoConnectionManagerImpl(
             AtomicReference(NabtoConnectionState.CLOSED),
             MutableLiveData(NabtoConnectionState.CLOSED),
             connectionEventsCallback,
-            options.toString()
+            options
         )
         return handle
     }

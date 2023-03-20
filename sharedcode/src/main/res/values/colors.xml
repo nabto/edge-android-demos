@@ -21,4 +21,6 @@
     <color name="green">#22ff22</color>
     <color name="yellow">#eeff22</color>
     <color name="red">#ff2222</color>
+
+    <color name="icon_color">#000000</color>
 </resources>
