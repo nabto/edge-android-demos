@@ -14,3 +14,6 @@
 .cxx
 local.properties
 **/release/
+tunnelvideo/src/main/assets
+tunnelvideo/src/main/java/org
+tunnelvideo/gst-android-build
