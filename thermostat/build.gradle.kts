@@ -13,7 +13,7 @@ android {
         applicationId = "com.nabto.edge.thermostatdemo"
         minSdk = 26
         targetSdk = 33
-        versionCode = 14
+        versionCode = 20
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -11,7 +11,7 @@ android {
         applicationId = "com.nabto.edge.tunnelvideodemo"
         minSdk = 26
         targetSdk = 33
-        versionCode = 13
+        versionCode = 20
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
