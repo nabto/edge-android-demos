@@ -9,6 +9,7 @@ plugins {
 
 android {
     compileSdk = 33
+    ndkVersion = "20.1.5948944"
 
     defaultConfig {
         applicationId = "com.nabto.edge.tunnelvideodemo"
@@ -20,16 +21,24 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             ndkBuild {
-                val properties = Properties()
-                properties.load(project.rootProject.file("local.properties").inputStream())
-
                 val propertiesKey = "gstAndroidRoot"
                 val envKey = "GSTREAMER_ROOT_ANDROID"
+
+                val localProperties = project.rootProject.file("local.properties")
+                val properties = 
+                    if (localProperties.exists()) {
+                        val props = Properties()
+                        props.load(localProperties.inputStream())
+                        props
+                    } else {
+                        null
+                    }
+
                 val gstRoot: String? =
                     if (project.properties.containsKey(propertiesKey)) {
                         project.properties[propertiesKey] as String
-                    } else if (properties.containsKey(propertiesKey)) {
-                        properties[propertiesKey] as String
+                    } else if (properties != null && properties!!.containsKey(propertiesKey)) {
+                        properties!![propertiesKey] as String
                     } else {
                         System.getenv()[envKey]
                     }
