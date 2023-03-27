@@ -32,7 +32,7 @@ jobs:
           echo "GSTREAMER_ROOT_ANDROID=$(pwd)/gstreamer" >> $GITHUB_ENV
 
       - name: Assemble unsigned APKs
-        run: ./gradlew assembleRelease --no-daemon --refresh-dependencies
+        run: sudo -E ./gradlew assembleRelease --no-daemon --refresh-dependencies --scan
 
       - name: Get tag
         if: startsWith(github.ref, 'refs/tags/')
