@@ -5,6 +5,7 @@ plugins {
 
 android {
     compileSdk = 33
+    namespace = "com.nabto.edge.tunnelhttpdemo"
 
     defaultConfig {
         applicationId = "com.nabto.edge.tunnelhttpdemo"

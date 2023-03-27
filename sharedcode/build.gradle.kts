@@ -11,6 +11,7 @@ val nabtoWrapperVersion = "2.4.0"
 
 android {
     compileSdk = 33
+    namespace = "com.nabto.edge.sharedcode"
 
     defaultConfig {
         minSdk = 26
