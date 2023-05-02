@@ -8,6 +8,7 @@ plugins {
 
 android {
     compileSdk = 33
+    namespace = "com.nabto.edge.thermostatdemo"
 
     defaultConfig {
         applicationId = "com.nabto.edge.thermostatdemo"
