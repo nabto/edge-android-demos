@@ -24,9 +24,11 @@ jobs:
           java-version: 11
           distribution: adopt
 
+      - name: GStreamer setup
+        run: echo "GSTREAMER_ROOT_ANDROID=/dev/null" >> $GITHUB_ENV
+
       - name: Assemble unsigned APKs
         run: |
-          echo "GSTREAMER_ROOT_ANDROID=/dev/null" >> $GITHUB_ENV
           ./gradlew thermostat:assembleRelease tunnelhttp:assembleRelease --no-daemon --refresh-dependencies
 
       - name: Get tag
