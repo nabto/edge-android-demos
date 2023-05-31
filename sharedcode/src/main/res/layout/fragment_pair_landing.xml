@@ -83,13 +83,26 @@
                         android:inputType="textPersonName"
                         android:saveEnabled="true"/>
 
-                    <Button
-                        android:id="@+id/pair_landing_pair_button"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="center_horizontal"
-                        android:layout_margin="12dp"
-                        android:text="@string/pair_with_device" />
+                        android:gravity="center"
+                        android:orientation="horizontal">
+                        <Button
+                            android:id="@+id/pair_landing_qr_button"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
+                            android:layout_margin="12dp"
+                            android:text="@string/scan_qr_code" />
+                        <Button
+                            android:id="@+id/pair_landing_pair_button"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
+                            android:layout_margin="12dp"
+                            android:text="@string/pair_with_device" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

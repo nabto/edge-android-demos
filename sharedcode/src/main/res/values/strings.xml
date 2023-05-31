@@ -52,12 +52,12 @@
     <string name="home_remove_device">Remove device</string>
     <string name="home_delete_dialog_message">Are you sure you want to remove %1$s from your device list? This cannot be undone.</string>
     <string name="home_delete_device_snack">%1$s has been removed.</string>
-    <string name="pairing_string_info">Alternatively you may enter a pairing string received from your device.</string>
+    <string name="pairing_string_info">Alternatively you may enter a pairing string that you received from your device, or scan a QR code.</string>
     <string name="pairing_string_hint">p=[productId],d=[deviceId]</string>
-    <string name="pairing_string">Pairing string</string>
+    <string name="pairing_string">Manual pairing</string>
     <string name="pair_landing_discover_button">Go to discovered devices</string>
     <string name="pair_landing_discover_info">Discover new devices</string>
-    <string name="pair_with_device">Pair with device</string>
+    <string name="pair_with_device">Pair device</string>
     <string name="pair_device_failed_coroutine">Failed to pair with device, coroutine cancelled during pairing.</string>
     <string name="pair_device_failed_closed">Failed to pair with device because it prematurely closed.</string>
     <string name="pair_device_failed_to_connect">Failed to connect to the device %1$s</string>
@@ -67,4 +67,5 @@
     <string name="app_name">Edge App</string>
     <string name="settings_about_summary">Information about this app and Nabto</string>
     <string name="settings_about_title">About</string>
+    <string name="scan_qr_code">Scan QR code</string>
 </resources>

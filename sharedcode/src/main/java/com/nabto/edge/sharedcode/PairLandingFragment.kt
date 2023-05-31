@@ -8,6 +8,8 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import androidx.navigation.fragment.findNavController
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 
 /**
  * Fragment for fragment_pair_landing.xml
@@ -15,6 +17,16 @@ import androidx.navigation.fragment.findNavController
  * or let the user input a pairing string.
  */
 class PairLandingFragment : Fragment() {
+    val etPairingString: EditText by lazy { requireView().findViewById(R.id.pair_landing_et_string) }
+
+    val scanner = registerForActivityResult(ScanContract()) {
+        if (it.contents == null) {
+            // @TODO: Error
+        } else {
+            etPairingString.setText(it.contents)
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -51,7 +63,6 @@ class PairLandingFragment : Fragment() {
             findNavController().navigate(R.id.action_pairLandingFragment_to_pairNewFragment)
         }
 
-        val etPairingString = view.findViewById<EditText>(R.id.pair_landing_et_string)
         val pairButton = view.findViewById<Button>(R.id.pair_landing_pair_button)
         pairButton.setOnClickListener {
             val device = parsePairingString(etPairingString.text.toString())
@@ -61,6 +72,15 @@ class PairLandingFragment : Fragment() {
                 etPairingString.error = "Pairing string does not match pattern."
             }
             clearFocusAndHideKeyboard()
+        }
+
+        val scanButton = view.findViewById<Button>(R.id.pair_landing_qr_button)
+        scanButton.setOnClickListener {
+            ScanOptions().apply {
+                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                setPrompt("Scan a QR code for a device.")
+                scanner.launch(this)
+            }
         }
     }
 }

@@ -93,6 +93,9 @@ dependencies {
     api ("io.insert-koin:koin-androidx-navigation:$koinVersion")
     testImplementation ("io.insert-koin:koin-test:$koinVersion")
 
+    // Misc dependencies
+    api ("com.journeyapps:zxing-android-embedded:4.3.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.3")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.4.0")
