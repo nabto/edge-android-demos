@@ -131,27 +131,32 @@ private class PairDeviceViewModel(
         return iam.awaitGetDeviceDetails(connection)
     }
 
-    private suspend fun getDeviceDetails(friendlyDeviceName: String): Device {
-        val connection = manager.getConnection(handle)
-        val details = iam.awaitGetDeviceDetails(connection)
-        val user = iam.awaitGetCurrentUser(connection)
-        val fingerprint = connection.deviceFingerprint
-        return device.copy(
-            productId = details.productId,
-            deviceId = details.deviceId,
-            fingerprint = fingerprint,
-            SCT = user.sct,
-            appName = details.appName ?: "",
-            friendlyName = friendlyDeviceName
-        )
+    private suspend fun getDeviceDetails(friendlyDeviceName: String): Device? {
+        try {
+            val connection = manager.getConnection(handle)
+            val details = iam.awaitGetDeviceDetails(connection)
+            val user = iam.awaitGetCurrentUser(connection)
+            val fingerprint = connection.deviceFingerprint
+            return device.copy(
+                productId = details.productId,
+                deviceId = details.deviceId,
+                fingerprint = fingerprint,
+                SCT = user.sct,
+                appName = details.appName ?: "",
+                friendlyName = friendlyDeviceName
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not retrieve device details due to $e")
+            return null
+        }
     }
 
-    private suspend fun pairLocalOpen(desiredUsername: String, friendlyDeviceName: String): Device {
+    private suspend fun pairLocalOpen(desiredUsername: String, friendlyDeviceName: String): Device? {
         iam.awaitPairLocalOpen(manager.getConnection(handle), desiredUsername)
         return getDeviceDetails(friendlyDeviceName)
     }
 
-    suspend fun pairPasswordOpen(desiredUsername: String, friendlyDeviceName: String): Device {
+    suspend fun pairPasswordOpen(desiredUsername: String, friendlyDeviceName: String): Device? {
         iam.awaitPairPasswordOpen(manager.getConnection(handle), desiredUsername, password)
         return getDeviceDetails(friendlyDeviceName)
     }
@@ -171,8 +176,12 @@ private class PairDeviceViewModel(
 
                 if (isCurrentUserPaired()) {
                     val dev = getDeviceDetails(friendlyName)
-                    _pairingResult.postValue(PairingResult.Success(true, dev))
-                    return@launch
+                    if (dev != null) {
+                        _pairingResult.postValue(PairingResult.Success(true, dev))
+                        return@launch
+                    } else {
+                        _pairingResult.postValue(PairingResult.FailedDeviceDisconnected)
+                    }
                 }
 
                 val modes = iam.getAvailablePairingModes(manager.getConnection(handle))
