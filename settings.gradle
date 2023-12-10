@@ -13,6 +13,9 @@ plugins {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        maven {
+            url "https://s01.oss.sonatype.org/service/local/repositories/comnabto-1014/content/"
+        }
         google()
         mavenCentral()
     }
@@ -31,5 +34,5 @@ gradleEnterprise {
 rootProject.name = "Nabto Edge Android Demo"
 include ':sharedcode'
 include ':thermostat'
-include ':tunnelvideo'
+//include ':tunnelvideo'
 include ':tunnelhttp'

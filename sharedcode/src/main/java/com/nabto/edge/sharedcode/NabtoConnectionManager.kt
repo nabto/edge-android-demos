@@ -347,7 +347,7 @@ class NabtoConnectionManagerImpl(
                     val conn = data.connection
                     data.connection = null
                     try {
-                        conn?.close()
+                        conn?.connectionClose()
                     } catch (e: NabtoRuntimeException) {
                         if (e.errorCode.errorCode == ErrorCodes.NOT_CONNECTED) {
                             Log.w(TAG, "Tried to close unconnected connection!")

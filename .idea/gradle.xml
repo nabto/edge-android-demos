@@ -7,14 +7,13 @@
         <option name="testRunner" value="GRADLE" />
         <option name="distributionType" value="DEFAULT_WRAPPED" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="gradleJvm" value="19" />
+        <option name="gradleJvm" value="#JAVA_HOME" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/sharedcode" />
             <option value="$PROJECT_DIR$/thermostat" />
             <option value="$PROJECT_DIR$/tunnelhttp" />
-            <option value="$PROJECT_DIR$/tunnelvideo" />
           </set>
         </option>
       </GradleProjectSettings>

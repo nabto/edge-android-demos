@@ -250,7 +250,6 @@ class DevicePageViewModel(
             _connEvent.postEvent(AppConnectionEvent.RECONNECTED)
         }
     }
-
     suspend fun startTunnelService() {
         Log.i(TAG, "Attempting to open tunnel service...")
         if (connectionManager.getConnectionState(handle)?.value == NabtoConnectionState.CONNECTED) {

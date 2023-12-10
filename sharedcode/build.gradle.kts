@@ -7,7 +7,7 @@ plugins {
 }
 
 // We keep this here so it can be exposed to BuildConfig.
-val nabtoWrapperVersion = "2.4.0"
+val nabtoWrapperVersion = "3.0.0"
 
 android {
     compileSdk = 33

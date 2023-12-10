@@ -10,7 +10,7 @@ plugins {
 android {
     compileSdk = 33
     namespace = "com.nabto.edge.tunnelvideodemo"
-    ndkVersion = "20.1.5948944"
+    ndkVersion = "25.2.9519653"
 
     defaultConfig {
         applicationId = "com.nabto.edge.tunnelvideodemo"
