@@ -42,6 +42,7 @@ open class NabtoAndroidApplication : Application() {
     fun initializeNabtoApplication(config: NabtoConfiguration) {
         SetNabtoConfiguration(config)
         val connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+//        nabtoClient.setLogLevel("trace")
         startKoin {
             androidLogger()
             androidContext(this@NabtoAndroidApplication)

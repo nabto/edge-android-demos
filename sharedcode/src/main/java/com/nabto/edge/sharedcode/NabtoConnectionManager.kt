@@ -356,6 +356,7 @@ class NabtoConnectionManagerImpl(
                         }
                     }
                     conn?.removeConnectionEventsListener(data.connectionEventsCallback)
+                    conn?.close()
                 }
             }
         }
@@ -367,10 +368,11 @@ class NabtoConnectionManagerImpl(
             scope.launch(singleDispatcher){
                 try {
                     data.connection?.removeConnectionEventsListener(data.connectionEventsCallback)
-                    data.connection?.close()
+                    data.connection?.connectionClose()
                 } catch (e: NabtoRuntimeException) {
                     Log.w(TAG, "Attempt to close connection yielded $e")
                 }
+                data.connection?.close()
             }
         }
     }
