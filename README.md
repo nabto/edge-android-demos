@@ -38,7 +38,4 @@ gradlew :tunnelvideo:build
 # How to make add a new app
 If you want to use the same skeleton framework in the sharedcode module to build an app, you may follow the [Making a new app using the sharedcode skeleton](making_new_apps.md) tutorial
 
-Please note that making a new app in this way is **NOT** necessary to use Nabto Edge. It is simply how the project files for these demos are laid out. You may want to take a look at our more simple examples to see standalone short examples of using various Nabto Edge functionality.
-
-* [Edge Android Simple CoAP](https://github.com/nabto/edge-android-simplecoap)
-* [Edge Android Simple Tunnel](https://github.com/nabto/edge-android-simpletunnel)
+Please note that making a new app in this way is **NOT** necessary to use Nabto Edge. It is simply how the project files for these demos are laid out.
