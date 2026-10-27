@@ -7,14 +7,14 @@ plugins {
 }
 
 // We keep this here so it can be exposed to BuildConfig.
-val nabtoWrapperVersion = "3.1.0"
+val nabtoWrapperVersion = "3.2.0"
 
 android {
     compileSdk = 34
     namespace = "com.nabto.edge.sharedcode"
 
     defaultConfig {
-        minSdk = 26
+        minSdk = 28
         buildConfigField("String", "NABTO_WRAPPER_VERSION", "\"${nabtoWrapperVersion}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

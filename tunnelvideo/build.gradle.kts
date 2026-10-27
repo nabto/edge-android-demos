@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.nabto.edge.tunnelvideodemo"
-        minSdk = 26
+        minSdk = 28
         versionCode = 20
         versionName = "1.0.0"
 
