@@ -24,9 +24,6 @@ jobs:
           java-version: 17
           distribution: adopt
 
-      - name: GStreamer setup
-        run: echo "GSTREAMER_ROOT_ANDROID=/dev/null" >> $GITHUB_ENV
-
       - name: Assemble unsigned APKs
         run: |
           ./gradlew thermostat:assembleRelease tunnelhttp:assembleRelease --no-daemon --refresh-dependencies

@@ -13,6 +13,7 @@ android {
     defaultConfig {
         applicationId = "com.nabto.edge.thermostatdemo"
         minSdk = 28
+        targetSdk = 34
         versionCode = 20
         versionName = "1.0.0"
 

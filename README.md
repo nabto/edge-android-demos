@@ -14,12 +14,10 @@ Tunnel Video demo is in the [tunnelvideo](tunnelvideo) folder. This demo showcas
 Tunnel HTTP demo is in the [tunnelhttp](tunnelhttp) folder. This demo showcases opening a TCP tunnel and subsequently viewing websites that are served by a device. Your webserver should be running [tcp_tunnel_device](https://github.com/nabto/nabto-embedded-sdk/tree/master/apps/tcp_tunnel_device). There is currently no tutorial for setting up a device with Tunnel HTTP, but it is very similar to setting up for Tunnel Video.
 
 # Building and running
-You can open the project in Android Studio as-is. If you try to build it may complain about missing a `GSTREAMER_ROOT_ANDROID` environment variable. This environment variable is only relevant if you intend to build Tunnel Video. If you intend to build one of the other projects that do not use GStreamer you may simply set this variable to `/dev/null` or similar, it will not be used. See the next section if you intend to build Tunnel Video.
+You can open the project in Android Studio as-is. Building Tunnel Video requires GStreamer and a `GSTREAMER_ROOT_ANDROID` environment variable, see the next section. The other demos do not use GStreamer and can be built without it.
 
 You may also build and install one of the apps on the commandline. You can use `installDebug` to install directly to a connected phone, or `assembleDebug` to create a debug APK. See the following example to build thermostat.
 ```sh
-# Remember to set GSTREAMER_ROOT_ANDROID to something so Gradle doesn't complain
-export GSTREAMER_ROOT_ANDROID=/dev/null
 gradlew :thermostat:build
 gradlew :thermostat:assembleDebug
 ```
