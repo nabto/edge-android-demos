@@ -7,6 +7,39 @@ plugins {
     id("kotlinx-serialization")
 }
 
+val gstPropertiesKey = "gstAndroidRoot"
+val gstEnvKey = "GSTREAMER_ROOT_ANDROID"
+
+val gstRoot: String? = run {
+    val localProperties = project.rootProject.file("local.properties")
+    val properties =
+        if (localProperties.exists()) {
+            val props = Properties()
+            props.load(localProperties.inputStream())
+            props
+        } else {
+            null
+        }
+
+    if (project.properties.containsKey(gstPropertiesKey)) {
+        project.properties[gstPropertiesKey] as String
+    } else if (properties != null && properties.containsKey(gstPropertiesKey)) {
+        properties[gstPropertiesKey] as String
+    } else {
+        System.getenv()[gstEnvKey]
+    }
+}
+
+// Only fail when tunnelvideo itself is built, so other apps in the project
+// can be built without GStreamer being set up.
+if (gstRoot == null) {
+    tasks.named("preBuild") {
+        doFirst {
+            throw GradleException("$gstEnvKey must be set, or define $gstPropertiesKey in your local.properties or gradle.properties")
+        }
+    }
+}
+
 android {
     compileSdk = 34
     namespace = "com.nabto.edge.tunnelvideodemo"
@@ -19,37 +52,13 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        externalNativeBuild {
-            ndkBuild {
-                val propertiesKey = "gstAndroidRoot"
-                val envKey = "GSTREAMER_ROOT_ANDROID"
-
-                val localProperties = project.rootProject.file("local.properties")
-                val properties = 
-                    if (localProperties.exists()) {
-                        val props = Properties()
-                        props.load(localProperties.inputStream())
-                        props
-                    } else {
-                        null
-                    }
-
-                val gstRoot: String? =
-                    if (project.properties.containsKey(propertiesKey)) {
-                        project.properties[propertiesKey] as String
-                    } else if (properties != null && properties!!.containsKey(propertiesKey)) {
-                        properties!![propertiesKey] as String
-                    } else {
-                        System.getenv()[envKey]
-                    }
-
-                gstRoot?.let {
+        if (gstRoot != null) {
+            externalNativeBuild {
+                ndkBuild {
                     val main = "src/main"
                     arguments("NDK_APPLICATION_MK=$main/jni/Application.mk", "GSTREAMER_JAVA_SRC_DIR=$main/java", "GSTREAMER_ROOT_ANDROID=$gstRoot", "GSTREAMER_ASSETS_DIR=$main/assets")
                     targets("tunnel-video")
                     abiFilters("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-                } ?: run {
-                    throw GradleException("$envKey must be set, or define $propertiesKey in your local.properties or gradle.properties")
                 }
             }
         }
@@ -72,9 +81,11 @@ android {
         jvmTarget = "1.8"
         freeCompilerArgs = freeCompilerArgs + "-Xjvm-default=all"
     }
-    externalNativeBuild {
-        ndkBuild {
-            path ("src/main/jni/Android.mk")
+    if (gstRoot != null) {
+        externalNativeBuild {
+            ndkBuild {
+                path ("src/main/jni/Android.mk")
+            }
         }
     }
 }
