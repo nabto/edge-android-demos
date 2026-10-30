@@ -6,6 +6,10 @@ on:
     tags:
       - v*
 
+permissions:
+  # the build job also creates the release on tags
+  contents: write
+
 jobs:
   build:
     name: Build apps
